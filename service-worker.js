@@ -1,4 +1,4 @@
-const CACHE_NAME = "daily-observation-v1";
+const CACHE_NAME = "puppy-day-v2";
 const APP_FILES = [
   "./",
   "./index.html",
@@ -29,3 +29,4 @@ self.addEventListener("fetch", (event) => {
     caches.match(event.request).then((cached) => cached || fetch(event.request))
   );
 });
+
