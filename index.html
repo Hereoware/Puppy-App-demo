@@ -1,43 +1,20 @@
 <!doctype html>
-<html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#f4f6fb" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon-192.png" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/icon-192.png" />
-    <title>单个 Trial 原型</title>
-    <link rel="stylesheet" href="styles.css" />
-    <script src="app.js" defer></script>
-  </head>
-  <body>
-    <main class="page">
-      <header class="page-header">
-        <p class="eyebrow">研究原型 · Trial 01</p>
-        <h1>每日观察</h1>
-        <p class="intro">这是一个用于练习页面和交互的占位原型。</p>
-      </header>
-
-      <section class="trial-card" aria-labelledby="trial-title">
-        <div class="progress-row">
-          <span id="step-label">准备开始</span>
-          <span class="step-count">单个 trial</span>
-        </div>
-        <div class="progress-track" aria-hidden="true">
-          <div id="progress-fill" class="progress-fill"></div>
-        </div>
-
-        <div id="trial-content" aria-live="polite">
-          <h2 id="trial-title">准备好了吗？</h2>
-          <p class="body-copy">接下来会展示一段占位材料，然后请你回答一个问题。</p>
-          <button id="start-button" class="button button-primary" type="button">开始</button>
-        </div>
-      </section>
-
-      <p class="prototype-note">原型提示：当前内容仅用于测试交互，不会保存答案。</p>
-    </main>
-  </body>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#fff7ed" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icons/icon-192.png" type="image/png" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="app.js" defer></script>
+  <title>Puppy Day</title>
+</head>
+<body>
+  <main id="app" class="app-shell" aria-live="polite"></main>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
 </html>
