@@ -1,9 +1,9 @@
 {
   "id": ".",
-  "name": "每日观察 · 研究原型",
-  "short_name": "每日观察",
-  "description": "每日观察实验的交互原型",
-  "lang": "zh-CN",
+  "name": "Puppy Day",
+  "short_name": "Puppy Day",
+  "description": "Spend a little time with your puppy every day",
+  "lang": "en",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -25,3 +25,4 @@
     }
   ]
 }
+
