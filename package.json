@@ -1,0 +1,11 @@
+{
+  "name": "puppy-study-local-emulator",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix backend run dev",
+    "db:studio": "npm --prefix backend run db:studio",
+    "emulators:first-run": "firebase emulators:start --project demo-puppy-study --only auth,firestore,functions --export-on-exit=.emulator-data",
+    "emulators": "firebase emulators:start --project demo-puppy-study --only auth,firestore,functions --import=.emulator-data --export-on-exit=.emulator-data",
+    "serve": "py -m http.server 8000"
+  }
+}

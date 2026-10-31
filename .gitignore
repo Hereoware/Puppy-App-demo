@@ -1,0 +1,11 @@
+.firebase/
+functions/node_modules/
+functions/.env*
+*.log
+.emulator-data/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+backend/node_modules/
+backend/.env
+backend/generated/

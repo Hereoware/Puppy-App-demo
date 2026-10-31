@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ParticipantStatus {
+  ACTIVE
+  WITHDRAWN
+  TERMINATED
+}
+
+enum MoodPrediction {
+  HAPPY
+  SAD
+}
+
+model Participant {
+  id                 String            @id @default(cuid())
+  puppyName          String            @db.VarChar(24)
+  enrolledAt         DateTime          @default(now()) @db.Timestamptz(3)
+  timeZone           String            @default("America/New_York")
+  status             ParticipantStatus @default(ACTIVE)
+  recoveryCodeDigest String?           @unique
+  responses          DailyResponse[]
+}
+
+model DailyResponse {
+  id             String         @id @default(cuid())
+  participantId  String
+  participant    Participant    @relation(fields: [participantId], references: [id], onDelete: Restrict)
+  studyDay       Int
+  studyDate      DateTime       @db.Date
+  moodPrediction MoodPrediction
+  actualMood     MoodPrediction
+  fed            Boolean
+  played         Boolean
+  requestId      String         @db.VarChar(80)
+  createdAt      DateTime       @default(now()) @db.Timestamptz(3)
+
+  @@unique([participantId, studyDay])
+  @@unique([participantId, requestId])
+  @@index([studyDate])
+}
