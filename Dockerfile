@@ -9,7 +9,8 @@ WORKDIR /app/backend
 COPY backend/package.json backend/package-lock.json ./
 COPY backend/prisma.config.js ./prisma.config.js
 COPY backend/prisma ./prisma
-RUN npm ci --include=dev && npx prisma generate
+RUN npm ci --include=dev \
+  && DATABASE_URL="postgresql://build:build@localhost:5432/build" npx prisma generate
 
 COPY backend ./
 COPY index.html app.js admin.html admin.js trial-order-parser.mjs styles.css firebase-config.js firebase-data.js manifest.webmanifest service-worker.js /app/
