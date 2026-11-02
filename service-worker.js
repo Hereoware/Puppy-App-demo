@@ -1,4 +1,4 @@
-const CACHE_NAME = "puppy-day-v5";
+const CACHE_NAME = "puppy-day-v6";
 const APP_FILES = [
   "./",
   "./index.html",

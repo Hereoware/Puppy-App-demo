@@ -16,7 +16,7 @@ cd "C:\Users\21683\OneDrive - University of Pittsburgh\Documents\ChatGPT\Puppy A
 
 ## 2. 启动 PostgreSQL
 
-确保 `backend/.env` 存在并包含本机练习用的 `DATABASE_URL`。如果没有，可以复制 `backend/.env.example` 为 `backend/.env`。`.env` 含有数据库凭据，**不要上传到 GitHub 或发给参与者**。
+确保 `backend/.env` 存在并包含本机练习用的 `DATABASE_URL`。如果没有，可以复制 `backend/.env.example` 为 `backend/.env`。如已有本机 `.env`，无需额外配置 `DIRECT_URL`；Prisma 本机迁移会回退使用 `DATABASE_URL`。`.env` 含有数据库凭据，**不要上传到 GitHub 或发给参与者**。
 
 在项目根目录启动数据库容器：
 
@@ -66,7 +66,7 @@ http://localhost:3001/api/health
 http://localhost:3001/admin
 ```
 
-管理员页接受从 Excel 工作簿 **AllVersions** 工作表导出的 UTF-8 CSV。项目中已经有一份从你给的 `T(12).xlsx` 导出的本机文件：
+管理员页先要求输入研究者密码。本机开发的默认密码是 `puppy-local-admin`；线上部署时必须在主机密钥设置中设定一个至少 16 个字符的专用密码。登录后，页面接受从 Excel 工作簿 **AllVersions** 工作表导出的 UTF-8 CSV。项目中已经有一份从你给的 `T(12).xlsx` 导出的本机文件：
 
 ```text
 trial-orders/T12-AllVersions.csv
@@ -118,7 +118,51 @@ docker compose stop
 
 不要运行 `docker compose down -v`，因为 `-v` 会删除本机数据库卷和其中的练习数据。
 
-## 8. GitHub Pages 上的网址做什么
+## 8. 免费云端试运行（Render + Neon）
+
+仓库里的 `Dockerfile` 和 `render.yaml` 已准备好将同源的网页、Express API 和 Prisma 迁移部署为一个 Render Web Service。PostgreSQL 放在 Neon。此方案仅用于不含真实参与者的短期 staging / 技术验证。
+
+> **免费服务不适合正式研究数据。**Render 免费 Web Service 空闲 15 分钟会休眠，唤醒通常约一分钟；Render 免费 Postgres 30 天后到期且没有备份。Neon Free 可以作为测试数据库，但免费额度、休眠/恢复行为和账户要求以创建时的控制台为准。不要将真实参与者数据写进免费测试环境。详见 [Render 免费计划限制](https://render.com/docs/free) 与 [Neon 免费计划说明](https://neon.com/blog/neon-free-plan-1-gb-per-project)。
+
+### 8.1 创建 Neon 测试数据库
+
+1. 登录 Neon，创建一个专用于 Puppy App staging 的 PostgreSQL project；选离 Render 服务较近的区域。
+2. 在 Neon 控制台分别复制 pooled connection string 和 direct connection string（均通常以 `postgresql://` 开头）。将它们当作密码保管，不要发到聊天、提交到 Git 或写入本机前端文件。
+3. 暂时把连接串放在密码管理器，稍后分别粘贴到 Render 的 `DATABASE_URL`（pooled，给应用连接）和 `DIRECT_URL`（direct，供 Prisma 执行数据库迁移）。
+
+### 8.2 连接 GitHub 仓库并创建服务
+
+1. 确认代码已 commit 并 push 到 GitHub 的 `main` 分支。Render 控制台连接 GitHub 账号后，选择 `Hereoware/Puppy-App-demo` 仓库。
+2. 在 Render 选择 **New → Blueprint**，连接仓库并采用根目录的 `render.yaml`。如果 Blueprint 页面不能直接创建，选择 **New → Web Service**，Runtime 选 Docker、Branch 选 `main`、Health Check Path 填 `/api/health`、Instance Type 选 Free。
+3. 在 Render 服务的 **Environment** 页添加/填写：
+   - `DATABASE_URL`：粘贴 Neon 的 pooled connection string。
+   - `DIRECT_URL`：粘贴 Neon 的 direct connection string。
+   - `ADMIN_PASSWORD`：创建一个不复用 Pitt/GitHub 密码的长随机密码，至少 16 个字符。只填在 Render 的 Secret/Environment 页面。
+   - `JWT_SECRET`：Blueprint 会生成随机值；若手动创建服务，用密码管理器生成至少 32 个随机字符。
+   - 确认 `NODE_ENV=production`。不要设置 `PUPPY_LOCAL_TRIAL_CAPTURE=true`。
+4. 保存后触发部署。Docker 启动命令会先执行 `prisma migrate deploy`，再启动 API。等 Render 显示 Live 后，在 Render 页面复制 `onrender.com` HTTPS 地址。
+5. 打开 `https://你的服务.onrender.com/api/health`，确认返回 `{"ok":true,"database":"connected"}`。第一次访问休眠服务可能要等它启动。
+
+### 8.3 导入数据并打开前端
+
+1. 打开 `https://你的服务.onrender.com/admin`，输入 `ADMIN_PASSWORD` 登录。
+2. 选择 `trial-orders/T12-AllVersions.csv`（该文件不会被 Docker 镜像发布，需要从你的本机项目文件夹选择上传），确认 30 个版本、每版 24 天，然后点“验证并启用”。
+3. 参与者网页网址是 `https://你的服务.onrender.com/?backend=postgres`。先用你自己创建的测试参与者试跑，不要招募真实参与者。
+4. 新参与者首次注册后会出现恢复码。保存它；恢复时系统会轮换并显示新恢复码，因此每次跨设备恢复后都要保存新码。不要把恢复码与参与者回答放在同一份共享文件中。
+
+### 8.4 费用、数据和安全边界
+
+- 本指南按免费计划准备，但第三方方案/额度会变化。创建资源前检查计划价格、是否要求付款方式、用量/超额规则和自动升级开关；如要求添加付款方式，或任何页面提示会收费，先停止，不要确认。
+- Render 免费 Web Service 会冷启动；Render 免费数据库有 30 天期限且无备份。因此这个部署只用于演示和功能验证，**不可用于真实研究数据或连续 24 天的参与者研究**。
+- Neon 数据库中仅放合成测试记录。研究数据上线前，需由课题组确定经费、供应商审批、IRB/数据留存和删除方案、备份及访问审计，并选有持久化/备份保障的托管数据库。
+- 研究者 API 由密码登录保护；参与者写入、取 trial 与恢复码轮换由参与者 bearer session 保护。HTTPS 由 Render 提供。这个 staging 实现仍不是 IRB/隐私/安全审查的替代品。
+- 当前 `/api/health` 只公开数据库连通状态；不要将数据库连接串、管理密码、JWT 密钥或参与者恢复码贴到 Issue、聊天或代码仓库。
+
+### 8.5 停止或删除 staging
+
+在 Render 删除 Web Service，在 Neon 控制台删除对应的 staging project。删除前确认只选择 Puppy App 的测试资源；若不确定，不要点删除。免费服务休眠不等同于删除数据库。
+
+## 9. GitHub Pages 上的网址做什么
 
 公开的参与者网页仍可从以下 HTTPS 地址访问：
 
@@ -126,7 +170,7 @@ docker compose stop
 https://hereoware.github.io/Puppy-App-demo/
 ```
 
-这是 GitHub Pages 的静态前端，适合检查页面、图标、PWA 外观和演示交互。它**不会连接你电脑上的 PostgreSQL**；在这个网址上不会执行本机管理员导入或服务器随机分配。要测试当前 PostgreSQL 后端，请使用第 6 节的 `localhost:3001` 地址。
+这是 GitHub Pages 的静态前端，适合检查页面、图标、PWA 外观和演示交互。它**不会连接本机或云端 PostgreSQL**；数据库试运行要打开 Render 的 HTTPS 地址并加 `?backend=postgres`。
 
 如果想在手机上通过同一 Wi-Fi 测试本机后端：
 
@@ -139,14 +183,4 @@ https://hereoware.github.io/Puppy-App-demo/
 
 ## 为什么 PostgreSQL 不能直接在 GitHub Pages 上运行？
 
-GitHub Pages 负责发布 HTML、CSS、JavaScript 和图片等静态文件；它不会持续运行 Node/Express 进程，也不提供 PostgreSQL 数据库进程。当前 `docker-compose.yml` 在你的电脑上启动 PostgreSQL，`backend/server.js` 也只在电脑上监听 `localhost:3001`。电脑关机后，这个 API 和数据库就不可访问。
-
-要让不同地点的参与者在线访问同一个数据库，需要把后端和数据库分别部署到能运行服务器进程与托管 PostgreSQL 的云端服务，并且：
-
-- 在托管服务的环境变量中配置数据库连接，不把 `.env` 或密码提交到 GitHub。
-- 把数据库迁移安全地应用到云端数据库，并设置备份和访问策略。
-- 给研究者管理页加登录和权限控制；目前管理员 API 只有开发模式开关，没有研究者身份认证。
-- 给参与者 API 配置身份验证、HTTPS、请求来源策略和服务端每日锁定。前端当前使用相对路径 `/api`；跨域托管时还需要配置 API 地址和 CORS。
-- 将研究者后台和参与者页面的访问范围按 IRB 批准的数据管理方案配置。
-
-**不要把当前开发服务器直接暴露到互联网。**它的导入、参与者和数据读取接口没有生产级身份验证；将 `PUPPY_LOCAL_TRIAL_CAPTURE=true` 与 `NODE_ENV=development` 用在公开服务器上会开放这些接口。当前仓库的 GitHub Pages 发布只更新了静态前端和代码仓库，不代表 PostgreSQL 后台已经在线。
+GitHub Pages 负责发布 HTML、CSS、JavaScript 和图片等静态文件；它不会持续运行 Node/Express 进程，也不提供 PostgreSQL 数据库进程。本项目现在包含容器部署配置，但这不代表云端资源已经创建。必须完成上面的 Render 与 Neon 控制台步骤，才会出现真实在线的后端和数据库。

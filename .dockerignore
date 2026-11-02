@@ -1,0 +1,9 @@
+.git
+.github
+.emulator-data
+**/node_modules
+backend/.env
+backend/generated
+trial-orders
+*.log
+*.zip

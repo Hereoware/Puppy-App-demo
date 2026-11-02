@@ -108,13 +108,14 @@ let pendingRecoveryCode = null;
 let firebaseDataPromise = null;
 function isPostgresTrial() {
   const host = window.location.hostname;
-  const localNetworkHost = host === "localhost" || host === "127.0.0.1" || /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
-  return localNetworkHost && new URLSearchParams(window.location.search).get("backend") === "postgres";
+  return host !== "" && !host.endsWith("github.io") && new URLSearchParams(window.location.search).get("backend") === "postgres";
 }
 function hasFirebaseConfig() { if (isPostgresTrial()) return false; const c = window.PUPPY_FIREBASE_CONFIG; return Boolean(c?.emulatorMode || (c?.apiKey && c?.authDomain && c?.projectId && c?.appId && c?.dataCollectionEnabled === true)); }
-function dataNotice() { const c = window.PUPPY_FIREBASE_CONFIG; if (isPostgresTrial()) return language === "zh" ? "本地试验：记录保存到此电脑的 PostgreSQL 数据库。" : language === "es" ? "Prueba local: las respuestas se guardan en PostgreSQL en este equipo." : "Local trial: responses save to PostgreSQL on this computer."; if (c?.emulatorMode) return ac("emulator"); if (!hasFirebaseConfig()) return ac("localOnly"); return ""; }
+function dataNotice() { const c = window.PUPPY_FIREBASE_CONFIG; if (isPostgresTrial()) return location.protocol === "https:" && !["localhost", "127.0.0.1"].includes(location.hostname) ? (language === "zh" ? "线上试运行：回答将发送到受保护的研究数据库。" : "Staging: responses are sent to the protected study database.") : (language === "zh" ? "本地试验：记录保存到此电脑的 PostgreSQL 数据库。" : language === "es" ? "Prueba local: las respuestas se guardan en PostgreSQL en este equipo." : "Local trial: responses save to PostgreSQL on this computer."); if (c?.emulatorMode) return ac("emulator"); if (!hasFirebaseConfig()) return ac("localOnly"); return ""; }
 async function postgresRequest(path, body) {
-  const response = await fetch(`/api/${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const headers = { "Content-Type": "application/json" };
+  if (state?.participantToken) headers.Authorization = `Bearer ${state.participantToken}`;
+  const response = await fetch(`/api/${path}`, { method: "POST", headers, body: JSON.stringify(body) });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || ac("saveFailed"));
   return result;
@@ -181,7 +182,8 @@ function renderOnboarding() {
     try {
       if (isPostgresTrial()) {
         const profile = await postgresRequest("participants", { puppyName: name });
-        state = { participantId: profile.participantId, postgresParticipant: true, assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: "environment-intro", environmentIntroSeen: false, completedToday: false, enrolledDate: profile.enrolledDate || todayKey(), interactions: { fed: false, played: false }, localOnly: true };
+        state = { participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: profile.recoveryCode ? "recovery-setup" : "environment-intro", environmentIntroSeen: false, completedToday: false, enrolledDate: profile.enrolledDate || todayKey(), interactions: { fed: false, played: false }, localOnly: true };
+        pendingRecoveryCode = profile.recoveryCode;
       } else if (hasFirebaseConfig()) {
         const profile = await (await firebaseData()).enrollParticipant(name);
         state = { participantId: profile.uid, firebaseUid: profile.uid, puppyName: profile.puppyName, language, screen: "recovery-setup", environmentIntroSeen: false, completedToday: false, enrolledDate: profile.enrolledOn, interactions: { fed: false, played: false } };
@@ -217,7 +219,7 @@ function renderHome() {
 async function loadTrialForDay() {
   const day = studyDay();
   if (isPostgresTrial() && state.postgresParticipant) {
-    const response = await fetch(`/api/participants/${encodeURIComponent(state.participantId)}/trials/${day}`);
+    const response = await fetch(`/api/participants/${encodeURIComponent(state.participantId)}/trials/${day}`, { headers: { Authorization: `Bearer ${state.participantToken}` } });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || ac("saveFailed"));
     state.currentTrial = result;
@@ -447,13 +449,13 @@ function startIdleCycle() { clearInterval(idleTimer); const poses = ["state-look
 function renderRecoverySetup() {
   app.innerHTML = `<section class="recovery-screen"><p class="eyebrow">${t("title")}</p><h1>${ac("codeTitle")}</h1><p>${ac("codeText")}</p>${pendingRecoveryCode ? `<code class="recovery-code">${pendingRecoveryCode}</code><button id="copy-code" class="button button-secondary button-wide">${ac("codeAction")}</button>` : `<p>${ac("codeMissing")}</p><button id="new-code" class="button button-secondary button-wide">${ac("makeCode")}</button>`}<button id="code-continue" class="button button-primary button-wide" ${pendingRecoveryCode ? "" : "disabled"}>${ac("codeSaved")}</button></section>`;
   document.querySelector("#copy-code")?.addEventListener("click", async () => { try { await navigator.clipboard.writeText(pendingRecoveryCode); showToast(ac("codeAction")); } catch { showToast(pendingRecoveryCode); } });
-  document.querySelector("#new-code")?.addEventListener("click", async e => { e.currentTarget.disabled = true; try { pendingRecoveryCode = await (await firebaseData()).issueRecoveryCode(); render(); } catch (error) { showToast(error.message || ac("saveFailed")); e.currentTarget.disabled = false; } });
-  document.querySelector("#code-continue").addEventListener("click", () => { pendingRecoveryCode = null; state.screen = "home"; saveState(); render(); });
+  document.querySelector("#new-code")?.addEventListener("click", async e => { e.currentTarget.disabled = true; try { if (isPostgresTrial()) pendingRecoveryCode = (await postgresRequest("participants/recovery-code", { participantId: state.participantId })).recoveryCode; else pendingRecoveryCode = await (await firebaseData()).issueRecoveryCode(); render(); } catch (error) { showToast(error.message || ac("saveFailed")); e.currentTarget.disabled = false; } });
+  document.querySelector("#code-continue").addEventListener("click", () => { pendingRecoveryCode = null; state.screen = state.environmentIntroSeen ? "home" : "environment-intro"; saveState(); render(); });
 }
 function renderRecoveryLogin() {
   app.innerHTML = `<section class="recovery-screen"><p class="eyebrow">${t("title")}</p><h1>${ac("recoverTitle")}</h1><form id="recovery-form"><label for="recovery-code">${ac("codeLabel")}</label><input id="recovery-code" autocomplete="one-time-code" required /><button class="button button-primary button-wide" type="submit">${ac("restore")}</button></form><button id="back-to-welcome" class="text-button">${t("begin")}</button></section>`;
   document.querySelector("#back-to-welcome").addEventListener("click", renderOnboarding);
-  document.querySelector("#recovery-form").addEventListener("submit", async e => { e.preventDefault(); const button = e.currentTarget.querySelector("button"); button.disabled = true; try { const profile = await (await firebaseData()).recoverParticipant(document.querySelector("#recovery-code").value); state = { participantId: profile.uid, firebaseUid: profile.uid, puppyName: profile.puppyName, language, screen: "home", environmentIntroSeen: true, completedToday: profile.lastSubmittedDate === todayKey(), completedDate: profile.lastSubmittedDate, enrolledDate: profile.enrolledOn, interactions: { fed: false, played: false }, nextStudyDay: profile.nextStudyDay }; saveState(); render(); } catch (error) { showToast(error.message || ac("saveFailed")); button.disabled = false; } });
+  document.querySelector("#recovery-form").addEventListener("submit", async e => { e.preventDefault(); const button = e.currentTarget.querySelector("button"); button.disabled = true; try { if (isPostgresTrial()) { const response = await fetch("/api/participants/recover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recoveryCode: document.querySelector("#recovery-code").value }) }); const profile = await response.json(); if (!response.ok) throw new Error(profile.error || ac("saveFailed")); state = { participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, puppyName: profile.puppyName, language, screen: "recovery-setup", environmentIntroSeen: true, completedToday: profile.completedToday, completedDate: profile.completedDate, enrolledDate: profile.enrolledDate, interactions: { fed: false, played: false } }; pendingRecoveryCode = profile.recoveryCode; } else { const profile = await (await firebaseData()).recoverParticipant(document.querySelector("#recovery-code").value); state = { participantId: profile.uid, firebaseUid: profile.uid, puppyName: profile.puppyName, language, screen: "home", environmentIntroSeen: true, completedToday: profile.lastSubmittedDate === todayKey(), completedDate: profile.lastSubmittedDate, enrolledDate: profile.enrolledOn, interactions: { fed: false, played: false }, nextStudyDay: profile.nextStudyDay }; } saveState(); render(); } catch (error) { showToast(error.message || ac("saveFailed")); button.disabled = false; } });
 }
 async function resumeFirebaseParticipant() {
   if (isPostgresTrial()) return;
@@ -478,7 +480,8 @@ async function resumePostgresParticipant() {
       ...(state.localOnly && state.participantId ? { participantId: state.participantId } : {}),
       puppyName: state.puppyName
     });
-    state = { ...state, participantId: profile.participantId, postgresParticipant: true, assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: "home", environmentIntroSeen: true, enrolledDate: profile.enrolledDate || todayKey(), completedToday: false, completedDate: null, prediction: null, predictedEScore: null, actualMood: null, actualEScore: null, currentTrial: null, requestId: null, interactions: { fed: false, played: false }, localOnly: true };
+    state = { ...state, participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: profile.recoveryCode ? "recovery-setup" : "home", environmentIntroSeen: true, enrolledDate: profile.enrolledDate || todayKey(), completedToday: false, completedDate: null, prediction: null, predictedEScore: null, actualMood: null, actualEScore: null, currentTrial: null, requestId: null, interactions: { fed: false, played: false }, localOnly: true };
+    pendingRecoveryCode = profile.recoveryCode;
     saveState(); render();
   } catch (error) {
     console.error("Could not connect this participant to the local database", error);
