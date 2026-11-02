@@ -2,6 +2,7 @@
   "name": "puppy-study-local-emulator",
   "private": true,
   "scripts": {
+    "test": "node --test",
     "dev": "npm --prefix backend run dev",
     "db:studio": "npm --prefix backend run db:studio",
     "emulators:first-run": "firebase emulators:start --project demo-puppy-study --only auth,firestore,functions --export-on-exit=.emulator-data",

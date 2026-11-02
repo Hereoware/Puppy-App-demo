@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#fff7ed" />
+  <link rel="stylesheet" href="styles.css" />
+  <script src="admin.js" type="module"></script>
+  <title>Puppy Study · Trial Order Admin</title>
+</head>
+<body>
+  <main class="admin-shell">
+    <a class="admin-back" href="/">← 返回 Puppy Day</a>
+    <header class="admin-header">
+      <p class="eyebrow">本地研究者工具</p>
+      <h1>Trial Order 管理</h1>
+      <p>上传 Excel 中 <strong>AllVersions</strong> 工作表另存的 CSV。每个版本须包含第 1–24 天；参与者注册时，系统会从当前启用的版本中随机分配一个。</p>
+    </header>
+
+    <div class="admin-warning" role="note"><strong>仅限本地试跑：</strong>此管理页依赖开发机上的 PostgreSQL，当前没有研究者登录或线上安全部署。不要用它录入真实参与者数据。</div>
+
+    <section class="admin-card">
+      <h2>上传一个 trial order</h2>
+      <label for="order-file">AllVersions CSV</label>
+      <input id="order-file" type="file" accept=".csv,text/csv" />
+      <label for="order-name">版本组名称</label>
+      <input id="order-name" maxlength="120" value="T(12)" />
+      <p class="admin-help">CSV 必须包含列：version、day、T、A、E、T_label、A_label。请在 Excel 中选择 AllVersions 工作表，使用 UTF-8 CSV 格式另存。</p>
+      <div id="upload-preview" class="admin-preview" hidden></div>
+      <button id="import-order" class="button button-primary" type="button" disabled>验证并启用</button>
+      <p id="admin-status" class="admin-status" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="admin-card">
+      <h2>已上传的版本组</h2>
+      <div id="order-list"><p class="admin-help">正在读取本地数据库…</p></div>
+    </section>
+  </main>
+</body>
+</html>

@@ -120,12 +120,12 @@ exports.recoverParticipant = onCall(async (request) => {
 
 exports.submitDailyResponse = onCall(async (request) => {
   const uid = requireAuth(request);
-  const { studyDay, moodPrediction, interactions, requestId } = request.data || {};
+  const { studyDay, predictedEScore, interactions, requestId } = request.data || {};
   if (!Number.isInteger(studyDay) || studyDay < 1 || studyDay > MAX_STUDY_DAYS) {
     throw new HttpsError("invalid-argument", "Invalid study day.");
   }
-  if (!["happy", "sad"].includes(moodPrediction)) {
-    throw new HttpsError("invalid-argument", "Invalid mood response.");
+  if (!Number.isInteger(predictedEScore) || predictedEScore < -1 || predictedEScore > 10) {
+    throw new HttpsError("invalid-argument", "Predicted E score must be an integer from -1 to 10.");
   }
   if (typeof requestId !== "string" || requestId.length < 8 || requestId.length > 80) {
     throw new HttpsError("invalid-argument", "Invalid submission identifier.");
@@ -165,7 +165,7 @@ exports.submitDailyResponse = onCall(async (request) => {
     tx.create(dayRef, {
       studyDay,
       studyDate: today,
-      moodPrediction,
+      predictedEScore,
       interactions: { fed: interactions.fed, played: interactions.played },
       requestId,
       createdAt: FieldValue.serverTimestamp(),

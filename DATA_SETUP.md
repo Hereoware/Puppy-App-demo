@@ -16,6 +16,8 @@ The README-based backend can also capture a local practice trial. This is separa
 
 The local trial API has no participant sign-in yet. It is disabled unless `NODE_ENV=development` and `PUPPY_LOCAL_TRIAL_CAPTURE=true`; do not deploy with those settings or use it for real participants.
 
+The development server also exposes `/admin` for importing a UTF-8 CSV exported from the workbook's `AllVersions` sheet. It validates 24 days per version, activates the newest set, and randomly assigns a version on participant enrollment. The returned daily trial is server-selected, and the saved response records its T/A/E values. This local admin flow has no researcher login and does not make the GitHub Pages site into a production research backend.
+
 ## Firebase services
 
 1. Create a Firebase project and register a Web App.

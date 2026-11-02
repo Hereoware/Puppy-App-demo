@@ -9,3 +9,5 @@ ui-debug.log
 backend/node_modules/
 backend/.env
 backend/generated/
+trial-orders/*.csv
+Puppy-App-Updated-Source.zip

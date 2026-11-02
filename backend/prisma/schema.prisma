@@ -25,7 +25,11 @@ model Participant {
   timeZone           String            @default("America/New_York")
   status             ParticipantStatus @default(ACTIVE)
   recoveryCodeDigest String?           @unique
+  assignedVersionId  String?
+  assignedVersion    TrialOrderVersion? @relation(fields: [assignedVersionId], references: [id], onDelete: SetNull)
   responses          DailyResponse[]
+
+  @@index([assignedVersionId])
 }
 
 model DailyResponse {
@@ -34,14 +38,43 @@ model DailyResponse {
   participant    Participant    @relation(fields: [participantId], references: [id], onDelete: Restrict)
   studyDay       Int
   studyDate      DateTime       @db.Date
-  moodPrediction MoodPrediction
-  actualMood     MoodPrediction
+  moodPrediction MoodPrediction?
+  actualMood     MoodPrediction?
+  predictedEScore Int?
+  actualEScore    Int?
+  tValue          Int?
+  aValue          Int?
+  tLabel          String?        @db.VarChar(80)
+  aLabel          String?        @db.VarChar(80)
   fed            Boolean
   played         Boolean
+  foodDurationMs Int?
+  activityDurationMs Int?
   requestId      String         @db.VarChar(80)
   createdAt      DateTime       @default(now()) @db.Timestamptz(3)
 
   @@unique([participantId, studyDay])
   @@unique([participantId, requestId])
   @@index([studyDate])
+}
+
+model TrialOrderSet {
+  id        String              @id @default(cuid())
+  name      String              @db.VarChar(120)
+  active    Boolean             @default(false)
+  createdAt DateTime            @default(now()) @db.Timestamptz(3)
+  versions  TrialOrderVersion[]
+}
+
+model TrialOrderVersion {
+  id        String        @id @default(cuid())
+  setId     String
+  set       TrialOrderSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+  code      String        @db.VarChar(40)
+  trials    Json
+  createdAt DateTime      @default(now()) @db.Timestamptz(3)
+  assigned  Participant[]
+
+  @@unique([setId, code])
+  @@index([setId])
 }
