@@ -299,6 +299,7 @@ function startFoodDrag(event) {
   dragStart = { x: event.clientX, y: event.clientY, left: event.currentTarget.offsetLeft, top: event.currentTarget.offsetTop };
   event.currentTarget.setPointerCapture(event.pointerId);
   event.currentTarget.classList.add("is-dragging");
+  document.querySelector(".food-playground")?.classList.add("is-food-dragging");
 }
 function moveFoodDrag(event) {
   if (!dragStart) return;
@@ -306,16 +307,21 @@ function moveFoodDrag(event) {
 }
 function finishFoodDrag(event) {
   if (!dragStart) return;
-  const target = document.elementFromPoint(event.clientX, event.clientY)?.closest("#food-bowl-target");
+  const bowl = document.querySelector("#food-bowl-target");
+  const bounds = bowl?.getBoundingClientRect();
+  const hitPadding = 22;
+  const droppedInBowl = bounds && event.clientX >= bounds.left - hitPadding && event.clientX <= bounds.right + hitPadding && event.clientY >= bounds.top - hitPadding && event.clientY <= bounds.bottom + hitPadding;
   dragStart = null;
   event.currentTarget.classList.remove("is-dragging");
-  if (!target) { event.currentTarget.style.transform = ""; return; }
+  document.querySelector(".food-playground")?.classList.remove("is-food-dragging");
+  if (!droppedInBowl) { event.currentTarget.style.transform = ""; return; }
+  event.currentTarget.style.transform = "";
   event.currentTarget.classList.add("food-in-bowl");
   interactionKind = "fed";
   interactionStartedAt = performance.now();
   updateInteractionProgress("food-fill", "food-status", interactionStartedAt, "fed");
 }
-function resetFoodDrag(event) { dragStart = null; event.currentTarget.style.transform = ""; event.currentTarget.classList.remove("is-dragging"); }
+function resetFoodDrag(event) { dragStart = null; event.currentTarget.style.transform = ""; event.currentTarget.classList.remove("is-dragging"); document.querySelector(".food-playground")?.classList.remove("is-food-dragging"); }
 function startActivityDrag(event) {
   if (playDone || interactionKind) return;
   event.preventDefault();

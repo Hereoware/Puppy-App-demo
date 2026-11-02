@@ -22,6 +22,7 @@
 .food-playground,.activity-playground{position:relative;display:flex;align-items:center;justify-content:space-between;min-height:110px;padding:12px 22px;border-radius:16px;overflow:hidden;background:linear-gradient(180deg,#e7f4f5,#cbe4c2)}
 .drag-token{position:relative;z-index:4;display:grid;place-items:center;width:58px;height:58px;padding:0;border:2px solid #fff;border-radius:18px;background:#fff;box-shadow:0 5px 13px rgb(36 56 42 / 16%);font-size:34px;touch-action:none;user-select:none;cursor:grab}
 .drag-token:active,.drag-token.is-dragging{cursor:grabbing;transform:scale(1.08);box-shadow:0 9px 20px rgb(36 56 42 / 24%)}
+.food-playground.is-food-dragging .food-bowl-target{outline:4px solid #91b58a;background:#fff;transform:scale(1.08)}
 .drag-token:disabled{opacity:.72;cursor:default}.food-bowl-target,.activity-dog-target{position:relative;z-index:2;display:grid;place-items:center;width:72px;height:72px;border:2px dashed rgb(66 98 66 / 35%);border-radius:50%;background:rgb(255 255 255 / 65%);font-size:42px}
 .interaction-arrow{position:absolute;z-index:3;left:46%;top:8px;color:#485bc0;font-size:25px;font-weight:900;animation:arrowNudge .8s ease-in-out infinite alternate;pointer-events:none}
 .food-token.food-in-bowl{opacity:.22;transform:translate(110px,25px) scale(.3);transition:transform .3s,opacity .3s}
