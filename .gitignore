@@ -1,4 +1,7 @@
 .firebase/
+.env
+.env.*
+!.env.example
 functions/node_modules/
 functions/.env*
 *.log
@@ -11,3 +14,5 @@ backend/.env
 backend/generated/
 trial-orders/*.csv
 Puppy-App-Updated-Source.zip
+.neon
+node_modules/

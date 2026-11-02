@@ -3,6 +3,7 @@ services:
     name: puppy-study-platform
     runtime: docker
     plan: free
+    region: virginia
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV

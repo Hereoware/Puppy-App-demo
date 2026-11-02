@@ -1,186 +1,297 @@
-# Puppy App：本机运行与测试指南
+# Puppy App: Step-by-Step Run and Test Guide
 
-这份指南说明如何在本机启动 PostgreSQL 和 Puppy App 后端、导入 trial order，并打开参与者前端进行练习。当前这套 PostgreSQL 流程是**本机开发版**，不能用于真实参与者的数据收集。
+This guide starts from a Windows computer that has never started this project. It explains how to start Rancher Desktop, run the local PostgreSQL database and app, upload a trial order, complete a participant visit, and check the saved record.
 
-## 1. 需要准备的工具
+> **This is a local development test.** The database runs on your computer. It is not the cloud database, and it is not approved for real participant data.
 
-- Node.js 和 npm
-- Rancher Desktop（或可用的 Docker Desktop），并确认 Docker 容器引擎正在运行
-- 本机项目文件夹
+## What You Will Start
 
-在 PowerShell 中先切换到项目根目录，例如：
+The local test uses three pieces:
+
+1. **Rancher Desktop** runs a small Linux environment on your Windows computer. Inside it, Docker runs PostgreSQL in a **container** (a lightweight isolated environment for an app). Rancher Desktop must be running before `docker compose` can start PostgreSQL.
+2. **PostgreSQL** is the local database. The project starts it with Docker Compose and keeps its data in a named volume (持久化存储卷).
+3. **Puppy App** runs in Node.js. Its Express backend (server-side app) serves the web page and connects to PostgreSQL.
+
+The browser page at `file:///.../index.html` is only a file preview. For this test, use the `http://localhost:3001/...` address served by Puppy App.
+
+## Before You Begin
+
+You need:
+
+- The Puppy App project folder on this computer.
+- Node.js and npm installed.
+- Rancher Desktop installed and configured to use **dockerd (Moby)** as its container engine (容器引擎). This mode provides the Docker API used by the `docker` and `docker compose` commands.
+- An internet connection the first time, so Docker can download the PostgreSQL image and npm can download project packages.
+
+You do not need Kubernetes for this guide.
+
+Rancher Desktop uses Windows Subsystem for Linux 2 (WSL 2) on Windows to run its Linux container environment. It is a local development tool; opening Rancher Desktop does not publish the app online. Rancher Desktop supports both `containerd` and `dockerd (Moby)`. This project uses Docker Compose, so select `dockerd (Moby)`. [Rancher Desktop: container engine](https://docs.rancherdesktop.io/ui/preferences/container-engine/general/) · [Rancher Desktop: Windows installation](https://docs.rancherdesktop.io/getting-started/installation/)
+
+## Step 1 — Open Rancher Desktop
+
+1. Open the Windows **Start** menu, search for **Rancher Desktop**, and launch it.
+2. Wait for Rancher Desktop to finish starting. On its dashboard, wait until the container engine shows that it is running/ready. The first launch may take longer while it prepares WSL 2 and downloads components.
+3. If Rancher Desktop asks which container engine to use, choose **dockerd (Moby)**. If you need to change it later, open Rancher Desktop **Preferences → Container Engine → General**, select **dockerd (Moby)**, and wait for it to restart.
+4. Keep Rancher Desktop open while using the local database. Closing it stops the local container engine, so the database will no longer be available until Rancher Desktop starts again.
+
+### Confirm Rancher Desktop Is Ready
+
+Open a **new VS Code PowerShell terminal** and run:
+
+```powershell
+docker --version
+docker compose version
+docker info
+```
+
+The first two commands should print version numbers. `docker info` should show both **Client** and **Server** information. If it says it cannot connect to `docker_engine` or `docker API`, the engine is not ready: return to Rancher Desktop, wait for it to finish starting, and run `docker info` again. If `docker` is not recognized, check the Rancher Desktop container-engine setting and its Docker CLI support utility.
+
+## Step 2 — Open the Project Folder in VS Code
+
+In VS Code, open the folder named **Puppy App!** (not just one HTML file). Open **Terminal → New Terminal** and confirm the prompt ends with the project folder, for example:
+
+```text
+C:\Users\21683\OneDrive - University of Pittsburgh\Documents\ChatGPT\Puppy App!
+```
+
+If the terminal is in a different folder, run:
 
 ```powershell
 cd "C:\Users\21683\OneDrive - University of Pittsburgh\Documents\ChatGPT\Puppy App!"
 ```
 
-## 2. 启动 PostgreSQL
+Check that Node.js and npm are available:
 
-确保 `backend/.env` 存在并包含本机练习用的 `DATABASE_URL`。如果没有，可以复制 `backend/.env.example` 为 `backend/.env`。如已有本机 `.env`，无需额外配置 `DIRECT_URL`；Prisma 本机迁移会回退使用 `DATABASE_URL`。`.env` 含有数据库凭据，**不要上传到 GitHub 或发给参与者**。
+```powershell
+node --version
+npm --version
+```
 
-在项目根目录启动数据库容器：
+If either command is not recognized, install Node.js, restart VS Code, and repeat this step.
+
+## Step 3 — Prepare the Local Environment File
+
+The backend reads local settings from `backend/.env`. This file is private and must not be uploaded to GitHub.
+
+If `backend/.env` does not exist, create it from the example:
+
+```powershell
+if (!(Test-Path "backend/.env")) { Copy-Item "backend/.env.example" "backend/.env" }
+```
+
+For the local test, the example file uses a local-only database URL and local-only researcher password. Do not reuse these values on a public server. If `backend/.env` already exists, keep it; do not overwrite it just to follow this step. Confirm that it contains `NODE_ENV=development` and `PUPPY_LOCAL_TRIAL_CAPTURE=true`; add either line from `.env.example` if it is missing.
+
+## Step 4 — Start the PostgreSQL Container
+
+Run this from the project root (the folder that contains `docker-compose.yml`):
 
 ```powershell
 docker compose up -d
 ```
 
-可查看容器状态：
+On the first run, Docker downloads the PostgreSQL image. The `-d` option starts it in the background so you can keep using the terminal.
+
+Check its status:
 
 ```powershell
 docker compose ps
 ```
 
-## 3. 应用数据库迁移
+Wait until the `postgres` service is running and its health status is `healthy`. It can take a few seconds. The database is available only on this computer at `localhost:5432`.
 
-第一次运行，或本次代码更新后，在 `backend` 目录执行：
+The database uses a named Docker volume, so stopping the container does not normally erase its local test data. Do not run `docker compose down -v` unless you intend to delete that volume and its data.
+
+## Step 5 — Install Backend Packages and Create the Tables
+
+In the same terminal, run:
 
 ```powershell
 cd backend
+npm ci
 npm run db:migrate
 cd ..
 ```
 
-这会创建或更新本机数据库表，并重新生成 Prisma Client。若出现连接错误，先确认 Docker 容器正常运行，以及 `backend/.env` 的数据库地址、用户名和密码与 `docker-compose.yml` 一致。
+`npm ci` installs the exact package versions in the lock file. `npm run db:migrate` applies the SQL migrations (数据库结构更新) and generates the Prisma Client used by the backend. On the first run, it creates the Puppy App tables.
 
-## 4. 启动 Puppy App 后端
+If migration fails, confirm Rancher Desktop is ready, `docker compose ps` reports a healthy PostgreSQL service, and `backend/.env` has the same local database address/user/password as `docker-compose.yml`.
 
-在项目根目录运行：
+## Step 6 — Start the Puppy App Backend
+
+From the project root, run:
 
 ```powershell
 npm run dev
 ```
 
-保持这个 PowerShell 窗口打开。健康检查地址是：
+Keep this terminal open. It runs the web server and API; closing the terminal stops Puppy App. A message similar to `Puppy Study API listening on http://localhost:3001` means the server started.
+
+Open this health check in a browser:
 
 ```text
 http://localhost:3001/api/health
 ```
 
-正常时会返回类似 `{"ok":true,"database":"connected"}` 的结果。
+Expected result:
 
-## 5. 导入 trial order
+```json
+{"ok":true,"database":"connected"}
+```
 
-在同一台电脑的浏览器打开本机管理员页面：
+If the page cannot open, check that the backend terminal is still running. If it reports a database error, return to Step 4 and check `docker compose ps`.
+
+## Step 7 — Sign In to the Local Researcher Page
+
+Open this URL in the browser:
 
 ```text
 http://localhost:3001/admin
 ```
 
-管理员页先要求输入研究者密码。本机开发的默认密码是 `puppy-local-admin`；线上部署时必须在主机密钥设置中设定一个至少 16 个字符的专用密码。登录后，页面接受从 Excel 工作簿 **AllVersions** 工作表导出的 UTF-8 CSV。项目中已经有一份从你给的 `T(12).xlsx` 导出的本机文件：
+The local example password is `puppy-local-admin`, unless `ADMIN_PASSWORD` in your private `backend/.env` sets another value. This is a development password only. Do not use it for an online service.
 
-```text
-trial-orders/T12-AllVersions.csv
-```
+After login, you should see the trial-order upload and current trial-order list. The administrator page must be opened through `localhost:3001`; opening `admin.html` as a `file:///` URL does not connect it to the backend.
 
-页面选择此 CSV，确认预览后点击“验证并启用”。导入器要求表头含有 `version`、`day`、`T`、`A`、`E`、`T_label`、`A_label`。每个版本必须恰好有 24 天；T/A 为 0 或 1；E 为 -1 到 10 的整数。
+## Step 8 — Upload a Trial Order
 
-当前 CSV 有 30 个版本。若只想让参与者在一部分版本中随机分配，请在 Excel 的 `AllVersions` 表中只保留你选中的版本行（保留表头），再另存为 CSV 上传。每个保留版本仍需包含第 1–24 天。
+1. In the local admin page, click the CSV file selector.
+2. In the project folder, select:
 
-每次成功导入都会将新版本组设为启用状态；**之后新注册的参与者**会从该组的版本中随机分配一个。已注册参与者保留原来的版本。
+   ```text
+   trial-orders/T12-AllVersions.csv
+   ```
 
-## 6. 打开参与者前端
+3. Wait for the validation preview. For the supplied file, it should report **30 versions**, each with **24 days**.
+4. Keep or edit the trial-order set name, then click the button labeled **验证并启用** (Validate and activate).
+5. Confirm the success message and check that the new set appears as active in the list.
 
-在同一台电脑打开：
+The importer expects the columns `version`, `day`, `T`, `A`, `E`, `T_label`, and `A_label`. Each version must contain days 1–24 once; T and A must be 0 or 1; E must be an integer from -1 to 10.
+
+The CSV is a local file selection; it does not need to be copied into the Docker container or committed to GitHub. A successful upload activates this order set for **new participants**. Participants already enrolled keep their existing assigned version.
+
+## Step 9 — Run a Participant Visit
+
+Open the participant app at:
 
 ```text
 http://localhost:3001/?backend=postgres
 ```
 
-这是要测试本机 PostgreSQL 随机分配、当日 trial 和提交记录时应该使用的前端网址。完成注册后，网页会从本机 API 获取分配给该参与者的当天 T/A/E；服务器会限制只读取当前研究日，并保存预测 E、实际 E、T/A 值及互动完成情况。
+Do not use the `file:///.../index.html` preview or the GitHub Pages URL for this database test.
 
-要测试另一个新参与者，可以用浏览器隐私/无痕窗口打开同一网址，创建新的参与者。每个浏览器的参与者状态保存在该浏览器的本机存储中。
+1. Choose a language and create a test puppy/participant.
+2. Save the recovery code shown after enrollment. It is needed to restore this participant later. When you restore with the code, the server rotates it and shows a replacement code; save the new code too.
+3. Continue through the environment introduction.
+4. Complete both interactions: move the food into the bowl and complete the activity. Each interaction is designed to take about eight seconds.
+5. Select a predicted E score from -1 to 10, continue through the displayed outcome, and finish the visit.
+6. Confirm that the app shows today’s visit as complete. Refresh the page or reopen the same URL: it should remain locked for today.
 
-如需查看数据库记录，在新的 PowerShell 窗口从项目根目录运行：
+The server assigns a trial-order version randomly at enrollment and only returns the trial for the participant’s current study day. The local server uses the actual calendar date; there is no “next day” simulation button in this database flow. To check a fresh enrollment on Day 1, use a new private/incognito browser window and create a separate test participant. Do not edit database dates to imitate a participant.
+
+## Step 10 — Check the Saved Database Record
+
+Open a **second** PowerShell terminal in the project root. Leave the backend terminal and Rancher Desktop running. Start Prisma Studio:
 
 ```powershell
 npm run db:studio
 ```
 
-Prisma Studio 会显示终端给出的本机地址，通常是 `http://localhost:5555`。可以查看 `Participant`、`TrialOrderSet`、`TrialOrderVersion` 和 `DailyResponse`。
+Open the local address printed in that terminal, usually:
 
-## 7. 运行自动测试
+```text
+http://localhost:5555
+```
 
-在项目根目录运行：
+Check these tables:
+
+- `Participant`: the test participant and its assigned trial-order version.
+- `TrialOrderSet`: the uploaded set and whether it is active.
+- `TrialOrderVersion`: the versions included in that set.
+- `DailyResponse`: the saved study day, predicted E, actual E, T/A values, interaction flags, and timestamps.
+
+Close Prisma Studio with **Ctrl+C** in its terminal when finished.
+
+## Step 11 — Stop the Local Test
+
+1. In the backend terminal, press **Ctrl+C** to stop Puppy App.
+2. In a terminal at the project root, run:
+
+   ```powershell
+   docker compose stop
+   ```
+
+This stops PostgreSQL but keeps the named volume and local test data. The next time you test, open Rancher Desktop again, run `docker compose up -d`, and restart the backend. Avoid `docker compose down -v`; `-v` removes the database volume and its contents.
+
+## What Each URL Is For
+
+| URL | What it does | Uses PostgreSQL? |
+|---|---|---:|
+| `file:///.../index.html` | Opens a local file preview | No |
+| `http://localhost:3001/?backend=postgres` | Local participant flow served by the backend | Yes, local database |
+| `http://localhost:3001/admin` | Local researcher login and trial-order upload | Yes, local database |
+| `https://hereoware.github.io/Puppy-App-demo/` | Public static GitHub Pages preview | No |
+| `https://YOUR-SERVICE.onrender.com/?backend=postgres` | Cloud staging participant flow, after Render is configured | Yes, cloud test database |
+
+GitHub Pages publishes static files only. It does not run Node.js or PostgreSQL. Pushing code to GitHub does not by itself create a cloud backend/database.
+
+## Optional — Test from a Phone on the Same Wi-Fi
+
+For a short local check, connect the phone and computer to the same Wi-Fi. Find the computer’s Wi-Fi IPv4 address using `ipconfig`, then open:
+
+```text
+http://COMPUTER-IP-ADDRESS:3001/?backend=postgres
+```
+
+For example: `http://192.168.1.23:3001/?backend=postgres`. The backend computer, Rancher Desktop, and PostgreSQL must stay running. Windows Firewall may ask whether Node.js can accept connections on a private network. This HTTP address is for local testing; use HTTPS for an online PWA.
+
+## Troubleshooting
+
+### `failed to connect to the docker API` or `docker_engine` does not exist
+
+Rancher Desktop’s container engine is not running yet. Open Rancher Desktop, wait for it to finish starting, confirm **dockerd (Moby)** is selected, then run `docker info`. Retry `docker compose up -d` only after `docker info` shows Server information.
+
+### `docker compose` is not recognized
+
+Check Rancher Desktop’s container-engine setting and Docker CLI integration. Confirm `docker compose version` works in a newly opened VS Code terminal.
+
+### PostgreSQL is not healthy or port 5432 is already in use
+
+Run `docker compose ps`. If another PostgreSQL service is already using port 5432, stop that service or ask for help before changing the project port and database URL.
+
+### `npm run db:migrate` cannot connect
+
+Confirm the PostgreSQL container is healthy and the `DATABASE_URL` in `backend/.env` points to `localhost:5432/puppy_study` with the local credentials from `docker-compose.yml`. Keep the full URL private.
+
+### The admin page or participant page is blank / shows a file URL
+
+Open the exact `http://localhost:3001/...` URL above, and confirm `npm run dev` is still running. Do not double-click `index.html` or `admin.html` for the database-backed workflow.
+
+### Admin login fails
+
+For local development, check `ADMIN_PASSWORD` in `backend/.env`. If it is not set, the local fallback is `puppy-local-admin`. Restart `npm run dev` after changing `.env`.
+
+### There is no active trial order
+
+Sign in at `http://localhost:3001/admin`, upload a valid AllVersions CSV, and confirm the upload success message. Then create a new participant; existing participants do not get reassigned.
+
+## Optional — Automated Importer Checks
+
+The following command runs the project’s automated tests. They check CSV parsing and validation; they are not a full browser/database test:
 
 ```powershell
 npm test
 ```
 
-当前测试覆盖 CSV 导入器：检查 T(12) 中 30 个版本的 24 天数据，并检查缺天、非二元 T/A、越界 E 和缺少列名时会被拒绝。它们是**数据导入单元测试**，不是完整的浏览器或 PostgreSQL 端到端测试。
+## Optional — Cloud Staging Test
 
-目前尚未建立数据库端到端测试。若要执行完整数据库试跑，先启动 Docker、运行数据库迁移，再按第 4–6 节完成一次注册、两个互动、E 预测和提交，并在 Prisma Studio 查看对应记录。
+The repository has a `Dockerfile` and `render.yaml`, but the cloud server and database have not been created yet. This is separate from the local Rancher Desktop setup.
 
-完成后可在数据库窗口运行以下命令停止容器，同时保留本机数据库卷：
+1. The Neon staging project has already been created in the **Here** organization: project `puppy-app-staging` (`muddy-cherry-68292284`), region **US East (N. Virginia)**. The organization is on the Free plan. Neon CLI saved its pooled and unpooled connection values in the ignored local file `.env.local`. Keep that file private. Its `DATABASE_URL` is the pooled connection string; `DATABASE_URL_UNPOOLED` is the direct connection string.
+2. In Render, create a Blueprint from the GitHub repository `Hereoware/Puppy-App-demo` on the `main` branch. Select the repository’s `render.yaml` configuration. The service is configured for the Free plan in Virginia to stay near Neon.
+3. In Render’s environment settings, provide `DATABASE_URL` (copy Neon’s `DATABASE_URL` pooled value), `DIRECT_URL` (copy Neon’s `DATABASE_URL_UNPOOLED` direct value), and a unique `ADMIN_PASSWORD` with at least 16 characters. Render generates `JWT_SECRET`; keep `NODE_ENV=production`. Do not add `PUPPY_LOCAL_TRIAL_CAPTURE`.
+4. Before confirming resource creation, inspect the current plan and billing screen. The guide aims for free tiers, but provider plans and overage terms can change. If it asks for a payment method or shows a charge/upgrade, stop and review it first.
+5. After deployment reports **Live**, open `https://YOUR-SERVICE.onrender.com/api/health`. It should report `{"ok":true,"database":"connected"}`.
+6. Sign in at `https://YOUR-SERVICE.onrender.com/admin` with the `ADMIN_PASSWORD` you set. Upload `trial-orders/T12-AllVersions.csv` from your local project folder.
+7. Open `https://YOUR-SERVICE.onrender.com/?backend=postgres` and complete a synthetic participant flow. Do not use real participant data in this free staging environment.
 
-```powershell
-docker compose stop
-```
-
-不要运行 `docker compose down -v`，因为 `-v` 会删除本机数据库卷和其中的练习数据。
-
-## 8. 免费云端试运行（Render + Neon）
-
-仓库里的 `Dockerfile` 和 `render.yaml` 已准备好将同源的网页、Express API 和 Prisma 迁移部署为一个 Render Web Service。PostgreSQL 放在 Neon。此方案仅用于不含真实参与者的短期 staging / 技术验证。
-
-> **免费服务不适合正式研究数据。**Render 免费 Web Service 空闲 15 分钟会休眠，唤醒通常约一分钟；Render 免费 Postgres 30 天后到期且没有备份。Neon Free 可以作为测试数据库，但免费额度、休眠/恢复行为和账户要求以创建时的控制台为准。不要将真实参与者数据写进免费测试环境。详见 [Render 免费计划限制](https://render.com/docs/free) 与 [Neon 免费计划说明](https://neon.com/blog/neon-free-plan-1-gb-per-project)。
-
-### 8.1 创建 Neon 测试数据库
-
-1. 登录 Neon，创建一个专用于 Puppy App staging 的 PostgreSQL project；选离 Render 服务较近的区域。
-2. 在 Neon 控制台分别复制 pooled connection string 和 direct connection string（均通常以 `postgresql://` 开头）。将它们当作密码保管，不要发到聊天、提交到 Git 或写入本机前端文件。
-3. 暂时把连接串放在密码管理器，稍后分别粘贴到 Render 的 `DATABASE_URL`（pooled，给应用连接）和 `DIRECT_URL`（direct，供 Prisma 执行数据库迁移）。
-
-### 8.2 连接 GitHub 仓库并创建服务
-
-1. 确认代码已 commit 并 push 到 GitHub 的 `main` 分支。Render 控制台连接 GitHub 账号后，选择 `Hereoware/Puppy-App-demo` 仓库。
-2. 在 Render 选择 **New → Blueprint**，连接仓库并采用根目录的 `render.yaml`。如果 Blueprint 页面不能直接创建，选择 **New → Web Service**，Runtime 选 Docker、Branch 选 `main`、Health Check Path 填 `/api/health`、Instance Type 选 Free。
-3. 在 Render 服务的 **Environment** 页添加/填写：
-   - `DATABASE_URL`：粘贴 Neon 的 pooled connection string。
-   - `DIRECT_URL`：粘贴 Neon 的 direct connection string。
-   - `ADMIN_PASSWORD`：创建一个不复用 Pitt/GitHub 密码的长随机密码，至少 16 个字符。只填在 Render 的 Secret/Environment 页面。
-   - `JWT_SECRET`：Blueprint 会生成随机值；若手动创建服务，用密码管理器生成至少 32 个随机字符。
-   - 确认 `NODE_ENV=production`。不要设置 `PUPPY_LOCAL_TRIAL_CAPTURE=true`。
-4. 保存后触发部署。Docker 启动命令会先执行 `prisma migrate deploy`，再启动 API。等 Render 显示 Live 后，在 Render 页面复制 `onrender.com` HTTPS 地址。
-5. 打开 `https://你的服务.onrender.com/api/health`，确认返回 `{"ok":true,"database":"connected"}`。第一次访问休眠服务可能要等它启动。
-
-### 8.3 导入数据并打开前端
-
-1. 打开 `https://你的服务.onrender.com/admin`，输入 `ADMIN_PASSWORD` 登录。
-2. 选择 `trial-orders/T12-AllVersions.csv`（该文件不会被 Docker 镜像发布，需要从你的本机项目文件夹选择上传），确认 30 个版本、每版 24 天，然后点“验证并启用”。
-3. 参与者网页网址是 `https://你的服务.onrender.com/?backend=postgres`。先用你自己创建的测试参与者试跑，不要招募真实参与者。
-4. 新参与者首次注册后会出现恢复码。保存它；恢复时系统会轮换并显示新恢复码，因此每次跨设备恢复后都要保存新码。不要把恢复码与参与者回答放在同一份共享文件中。
-
-### 8.4 费用、数据和安全边界
-
-- 本指南按免费计划准备，但第三方方案/额度会变化。创建资源前检查计划价格、是否要求付款方式、用量/超额规则和自动升级开关；如要求添加付款方式，或任何页面提示会收费，先停止，不要确认。
-- Render 免费 Web Service 会冷启动；Render 免费数据库有 30 天期限且无备份。因此这个部署只用于演示和功能验证，**不可用于真实研究数据或连续 24 天的参与者研究**。
-- Neon 数据库中仅放合成测试记录。研究数据上线前，需由课题组确定经费、供应商审批、IRB/数据留存和删除方案、备份及访问审计，并选有持久化/备份保障的托管数据库。
-- 研究者 API 由密码登录保护；参与者写入、取 trial 与恢复码轮换由参与者 bearer session 保护。HTTPS 由 Render 提供。这个 staging 实现仍不是 IRB/隐私/安全审查的替代品。
-- 当前 `/api/health` 只公开数据库连通状态；不要将数据库连接串、管理密码、JWT 密钥或参与者恢复码贴到 Issue、聊天或代码仓库。
-
-### 8.5 停止或删除 staging
-
-在 Render 删除 Web Service，在 Neon 控制台删除对应的 staging project。删除前确认只选择 Puppy App 的测试资源；若不确定，不要点删除。免费服务休眠不等同于删除数据库。
-
-## 9. GitHub Pages 上的网址做什么
-
-公开的参与者网页仍可从以下 HTTPS 地址访问：
-
-```text
-https://hereoware.github.io/Puppy-App-demo/
-```
-
-这是 GitHub Pages 的静态前端，适合检查页面、图标、PWA 外观和演示交互。它**不会连接本机或云端 PostgreSQL**；数据库试运行要打开 Render 的 HTTPS 地址并加 `?backend=postgres`。
-
-如果想在手机上通过同一 Wi-Fi 测试本机后端：
-
-1. 电脑和手机连接同一个 Wi-Fi。
-2. 在电脑运行 `ipconfig`，找到当前 Wi-Fi 网卡的 IPv4 地址。
-3. 手机打开 `http://电脑的IPv4地址:3001/?backend=postgres`，例如 `http://192.168.1.23:3001/?backend=postgres`。
-4. 后端运行期间，电脑不能关机或断开网络。若连接失败，检查 Windows 防火墙是否允许 Node.js 在私人网络接收连接。
-
-本机地址用于开发测试。GitHub Pages 的 HTTPS PWA 和这个本机 HTTP 后端是两条不同的运行路径；浏览器也不会把 GitHub Pages 里的相对 `/api` 请求自动转发到本机服务。
-
-## 为什么 PostgreSQL 不能直接在 GitHub Pages 上运行？
-
-GitHub Pages 负责发布 HTML、CSS、JavaScript 和图片等静态文件；它不会持续运行 Node/Express 进程，也不提供 PostgreSQL 数据库进程。本项目现在包含容器部署配置，但这不代表云端资源已经创建。必须完成上面的 Render 与 Neon 控制台步骤，才会出现真实在线的后端和数据库。
+The Neon database is online, but the Puppy App does not use it from its local backend automatically: local testing still reads `backend/.env`. The hosted app will connect to Neon only after the Render service is created and its environment variables are set in Render. Render free web services sleep after 15 minutes without requests; free Render Postgres expires after 30 days and has no backups. Do not use free staging resources for real research records or a continuous participant study. See [Render’s free service limitations](https://render.com/docs/free) and [Neon’s free plan information](https://neon.com/blog/neon-free-plan-1-gb-per-project).
