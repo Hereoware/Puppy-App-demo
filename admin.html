@@ -39,6 +39,30 @@
       <button id="import-order" class="button button-primary" type="button" disabled>验证并启用</button>
       <p id="admin-status" class="admin-status" role="status" aria-live="polite"></p>
     </section>
+
+    <section class="admin-card" id="responses-card">
+      <div class="admin-section-heading">
+        <div>
+          <h2>参与者回答</h2>
+          <p class="admin-help">已保存到云端数据库的每日回答。参与者 ID 用于关联同一参与者的多天记录。</p>
+        </div>
+        <div class="admin-actions">
+          <button id="refresh-responses" class="button button-secondary" type="button">刷新</button>
+          <button id="export-responses" class="button button-primary" type="button" disabled>导出 CSV</button>
+        </div>
+      </div>
+      <p id="responses-status" class="admin-status" role="status" aria-live="polite">登录后加载回答。</p>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr>
+            <th>参与者 ID</th><th>小狗名称</th><th>日期</th><th>天数</th>
+            <th>预测情绪</th><th>实际情绪</th><th>预测 E</th><th>实际 E</th>
+            <th>T</th><th>A</th><th>喂食</th><th>玩耍</th>
+          </tr></thead>
+          <tbody id="responses-table-body"><tr><td colspan="12">尚未加载回答。</td></tr></tbody>
+        </table>
+      </div>
+    </section>
     </div>
 
     <section class="admin-card">
