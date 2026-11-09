@@ -280,6 +280,7 @@ let interactionStartedAt = 0;
 let interactionKind = null;
 let dragStart = null;
 let dragDistance = 0;
+let activityLastPoint = null;
 function updateInteractionProgress(fillId, statusId, startedAt, frameId) {
   const elapsed = Math.min(INTERACTION_MS, performance.now() - startedAt);
   const fill = document.getElementById(fillId);
@@ -328,6 +329,7 @@ function startActivityDrag(event) {
   if (playDone || interactionKind) return;
   event.preventDefault();
   dragStart = { x: event.clientX, y: event.clientY, lastX: event.clientX };
+  activityLastPoint = { x: event.clientX, y: event.clientY };
   dragDistance = 0;
   interactionStartedAt = performance.now();
   interactionKind = state.currentTrial.a === 1 ? "tug" : "fetch-drag";
@@ -339,6 +341,7 @@ function moveActivityDrag(event) {
   if (!dragStart) return;
   dragDistance += Math.abs(event.clientX - dragStart.lastX);
   dragStart.lastX = event.clientX;
+  activityLastPoint = { x: event.clientX, y: event.clientY };
   const delta = event.clientX - dragStart.x;
   event.currentTarget.style.transform = `translate(${Math.max(-90, Math.min(90, delta))}px, ${event.clientY - dragStart.y}px)`;
   if (interactionKind === "tug") document.querySelector(".activity-playground")?.classList.toggle("rope-pulling", Math.abs(delta) > 12);
@@ -347,25 +350,48 @@ function finishActivityDrag(event) {
   if (!dragStart) return;
   if (playDone) { dragStart = null; event.currentTarget.style.transform = ""; event.currentTarget.classList.remove("is-dragging"); return; }
   const wasTug = interactionKind === "tug";
-  const target = document.elementFromPoint(event.clientX, event.clientY)?.closest("#activity-dog-target");
+  // Pointer capture can make elementFromPoint unreliable on some mobile browsers.
+  // Use the actual dog and play-area geometry, with a generous drop zone around both.
+  const dog = document.querySelector("#activity-dog-target")?.getBoundingClientRect();
+  const playground = document.querySelector(".activity-playground")?.getBoundingClientRect();
+  const x = event.clientX ?? activityLastPoint?.x ?? dragStart.x;
+  const y = event.clientY ?? activityLastPoint?.y ?? dragStart.y;
+  const inDogZone = dog && x >= dog.left - 44 && x <= dog.right + 44 && y >= dog.top - 44 && y <= dog.bottom + 44;
+  // The fetch scene visually asks the participant to throw toward the dog. Accept
+  // the right-hand half of the play area too, so a small phone target is not frustrating.
+  const inDogSideOfPlayground = playground && x >= playground.left + playground.width * 0.52 && x <= playground.right + 24 && y >= playground.top - 20 && y <= playground.bottom + 20;
+  const reachedDog = Boolean(inDogZone || inDogSideOfPlayground);
   dragStart = null;
   event.currentTarget.classList.remove("is-dragging");
   if (wasTug) {
     if (playDone) return;
+    event.currentTarget.style.transform = "";
+    document.querySelector(".activity-playground")?.classList.remove("rope-pulling");
+    // A short pull is enough to show engagement; keep the 8-second interaction
+    // timer running after release instead of cancelling it on pointerup.
+    if (dragDistance >= 24) {
+      activityLastPoint = null;
+      return;
+    }
     clearTimeout(timer);
-    interactionKind = null; event.currentTarget.style.transform = ""; document.querySelector(".activity-playground")?.classList.remove("rope-pulling"); document.querySelector("#activity-fill")?.style.setProperty("width", "0%"); document.querySelector("#activity-status").textContent = t("tugInstruction");
+    interactionKind = null;
+    document.querySelector("#activity-fill")?.style.setProperty("width", "0%");
+    document.querySelector("#activity-status").textContent = t("tugInstruction");
+    activityLastPoint = null;
     return;
   }
-  if (target) {
+  if (reachedDog && dragDistance >= 18) {
     event.currentTarget.classList.add("fetching-disc");
     interactionKind = "played";
     interactionStartedAt = performance.now();
     updateInteractionProgress("activity-fill", "activity-status", interactionStartedAt, "played");
   } else { interactionKind = null; event.currentTarget.style.transform = ""; }
+  activityLastPoint = null;
 }
 function cancelActivityDrag(event) {
   if (interactionKind === "tug") clearTimeout(timer);
   interactionKind = null; dragStart = null; event.currentTarget.style.transform = ""; event.currentTarget.classList.remove("is-dragging");
+  activityLastPoint = null;
   document.querySelector("#activity-fill")?.style.setProperty("width", "0%");
   const statusNode = document.querySelector("#activity-status"); if (statusNode) statusNode.textContent = state.currentTrial.a === 1 ? t("tugInstruction") : t("fetchTarget");
 }

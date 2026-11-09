@@ -1,7 +1,5 @@
 # Puppy App: Step-by-Step Run and Test Guide
 
-If you have already completed the first-time setup and want to repeat a test, use the shorter [Quick Repeat Test Guide](QUICK_REPEAT_TEST_GUIDE.md).
-
 This guide starts from a Windows computer that has never started this project. It explains how to start Rancher Desktop, run the local PostgreSQL database and app, upload a trial order, complete a participant visit, and check the saved record.
 
 > **This is a local development test.** The database runs on your computer. It is not the cloud database, and it is not approved for real participant data.
@@ -68,6 +66,7 @@ Check that Node.js and npm are available:
 node --version
 npm --version
 ```
+npm（Node Package Manager） 是 Node.js 自带的包管理器
 
 If either command is not recognized, install Node.js, restart VS Code, and repeat this step.
 
