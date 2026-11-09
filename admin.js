@@ -16,6 +16,9 @@ const responsesStatus = document.querySelector("#responses-status");
 const responsesTableBody = document.querySelector("#responses-table-body");
 const refreshResponsesButton = document.querySelector("#refresh-responses");
 const exportResponsesButton = document.querySelector("#export-responses");
+const participantsStatus = document.querySelector("#participants-status");
+const participantsTableBody = document.querySelector("#participants-table-body");
+const refreshParticipantsButton = document.querySelector("#refresh-participants");
 const ADMIN_TOKEN_KEY = "puppy-admin-session";
 let parsedOrder = null;
 let savedResponses = [];
@@ -51,12 +54,13 @@ loginForm.addEventListener("submit", async event => {
     document.querySelector("#admin-password").value = "";
     loginStatus.textContent = "登录成功。";
     showAdmin(true);
-    await Promise.all([loadOrders(), loadResponses()]);
+    await Promise.all([loadOrders(), loadResponses(), loadParticipants()]);
   } catch (error) { loginStatus.textContent = error.message; }
   finally { button.disabled = false; }
 });
 document.querySelector("#admin-logout").addEventListener("click", () => { sessionStorage.removeItem(ADMIN_TOKEN_KEY); showAdmin(false); });
 refreshResponsesButton.addEventListener("click", loadResponses);
+refreshParticipantsButton.addEventListener("click", loadParticipants);
 exportResponsesButton.addEventListener("click", exportResponsesCsv);
 
 fileInput.addEventListener("change", async () => {
@@ -197,6 +201,37 @@ async function loadResponses() {
   }
 }
 
+async function loadParticipants() {
+  participantsStatus.textContent = "正在读取注册信息…";
+  participantsStatus.className = "admin-status";
+  refreshParticipantsButton.disabled = true;
+  try {
+    const response = await fetch("/api/participants", { headers: adminHeaders() });
+    const rows = await response.json();
+    if (await handleUnauthorized(response)) throw new Error("登录已失效，请重新登录。");
+    if (!response.ok) throw new Error(rows.error || "无法读取参与者注册信息。");
+    if (!rows.length) {
+      participantsTableBody.innerHTML = '<tr><td colspan="6">数据库中还没有参与者注册记录。</td></tr>';
+      participantsStatus.textContent = "还没有参与者注册。";
+      return;
+    }
+    participantsTableBody.innerHTML = rows.map(row => `<tr>
+      <td><code>${escapeText(row.id)}</code></td>
+      <td>${escapeText(row.puppyName)}</td>
+      <td>${escapeText(new Date(row.enrolledAt).toLocaleString())}</td>
+      <td>${escapeText(row.status === "ACTIVE" ? "进行中" : row.status === "WITHDRAWN" ? "已退出" : row.status === "TERMINATED" ? "已结束" : row.status)}</td>
+      <td>${escapeText(row.responseCount)}</td>
+      <td>${escapeText(row.assignedVersion?.code || "未分配")}</td>
+    </tr>`).join("");
+    participantsStatus.textContent = `已加载 ${rows.length} 位参与者。`;
+  } catch (error) {
+    participantsStatus.textContent = error.message;
+    participantsStatus.className = "admin-status is-error";
+  } finally {
+    refreshParticipantsButton.disabled = false;
+  }
+}
+
 function renderResponses() {
   if (!savedResponses.length) {
     responsesTableBody.innerHTML = '<tr><td colspan="12">还没有回答记录。</td></tr>';
@@ -251,4 +286,4 @@ function escapeText(value) { const element = document.createElement("span"); ele
 function escapeAttribute(value) { return escapeText(value).replaceAll('"', "&quot;").replaceAll("'", "&#39;"); }
 
 showAdmin(Boolean(sessionStorage.getItem(ADMIN_TOKEN_KEY)));
-if (sessionStorage.getItem(ADMIN_TOKEN_KEY)) Promise.all([loadOrders(), loadResponses()]);
+if (sessionStorage.getItem(ADMIN_TOKEN_KEY)) Promise.all([loadOrders(), loadResponses(), loadParticipants()]);

@@ -107,13 +107,11 @@ The database uses a named Docker volume, so stopping the container does not norm
 In the same terminal, run:
 
 ```powershell
-cd backend
-npm ci
-npm run db:migrate
-cd ..
+npm --prefix backend ci
+npm --prefix backend run db:migrate
 ```
 
-`npm ci` installs the exact package versions in the lock file. `npm run db:migrate` applies the SQL migrations (数据库结构更新) and generates the Prisma Client used by the backend. On the first run, it creates the Puppy App tables.
+These commands install the exact backend package versions and apply the SQL migrations (database structure updates), then generate the Prisma Client. They operate on the local database configured in `backend/.env`.
 
 If migration fails, confirm Rancher Desktop is ready, `docker compose ps` reports a healthy PostgreSQL service, and `backend/.env` has the same local database address/user/password as `docker-compose.yml`.
 
@@ -261,7 +259,7 @@ Check Rancher Desktop’s container-engine setting and Docker CLI integration. C
 
 Run `docker compose ps`. If another PostgreSQL service is already using port 5432, stop that service or ask for help before changing the project port and database URL.
 
-### `npm run db:migrate` cannot connect
+### `npm --prefix backend run db:migrate` cannot connect
 
 Confirm the PostgreSQL container is healthy and the `DATABASE_URL` in `backend/.env` points to `localhost:5432/puppy_study` with the local credentials from `docker-compose.yml`. Keep the full URL private.
 
@@ -285,16 +283,14 @@ The following command runs the project’s automated tests. They check CSV parsi
 npm test
 ```
 
-## Optional — Cloud Staging Test
+## Hosted Participant Test — Render and Neon
 
-The repository has a `Dockerfile` and `render.yaml`, but the cloud server and database have not been created yet. This is separate from the local Rancher Desktop setup.
+Use this flow when participants are on another computer or phone over the internet. Replace `YOUR-SERVICE` with the Render service name shown in your Render dashboard.
 
-1. The Neon staging project has already been created in the **Here** organization: project `puppy-app-staging` (`muddy-cherry-68292284`), region **US East (N. Virginia)**. The organization is on the Free plan. Neon CLI saved its pooled and unpooled connection values in the ignored local file `.env.local`. Keep that file private. Its `DATABASE_URL` is the pooled connection string; `DATABASE_URL_UNPOOLED` is the direct connection string.
-2. In Render, create a Blueprint from the GitHub repository `Hereoware/Puppy-App-demo` on the `main` branch. Select the repository’s `render.yaml` configuration. The service is configured for the Free plan in Virginia to stay near Neon.
-3. In Render’s environment settings, provide `DATABASE_URL` (copy Neon’s `DATABASE_URL` pooled value), `DIRECT_URL` (copy Neon’s `DATABASE_URL_UNPOOLED` direct value), and a unique `ADMIN_PASSWORD` with at least 16 characters. Render generates `JWT_SECRET`; keep `NODE_ENV=production`. Do not add `PUPPY_LOCAL_TRIAL_CAPTURE`.
-4. Before confirming resource creation, inspect the current plan and billing screen. The guide aims for free tiers, but provider plans and overage terms can change. If it asks for a payment method or shows a charge/upgrade, stop and review it first.
-5. After deployment reports **Live**, open `https://YOUR-SERVICE.onrender.com/api/health`. It should report `{"ok":true,"database":"connected"}`.
-6. Sign in at `https://YOUR-SERVICE.onrender.com/admin` with the `ADMIN_PASSWORD` you set. Upload `trial-orders/T12-AllVersions.csv` from your local project folder.
-7. Open `https://YOUR-SERVICE.onrender.com/?backend=postgres` and complete a synthetic participant flow. Do not use real participant data in this free staging environment.
+1. Commit and push the latest project changes to the GitHub branch connected to Render. Wait until the Render service reports **Live**. Check deploy logs for `prisma migrate deploy` completing successfully; this applies new database migrations such as the trial-order category column.
+2. Check `https://YOUR-SERVICE.onrender.com/api/health`. It should return `{"ok":true,"database":"connected"}`.
+3. Open `https://YOUR-SERVICE.onrender.com/admin` and sign in with Render's `ADMIN_PASSWORD`. Upload and activate the AllVersions CSV **in this hosted admin page**. A CSV uploaded to `localhost:3001/admin` is stored in the local database and is not copied to Neon.
+4. Give participants this URL: `https://YOUR-SERVICE.onrender.com/?backend=postgres`. It must be the Render URL with `?backend=postgres`; `localhost` is only reachable from your own computer, and GitHub Pages is a static preview that does not submit to this PostgreSQL backend.
+5. In the same hosted `/admin` page, refresh **参与者注册** to see registrations (ID, puppy name, enrollment time, status, assigned version, and number of submitted days). Refresh **参与者回答** to see each saved daily response. Enrollment appears when a participant record is created; an answer appears only after the participant finishes the daily flow, submits it, and the page confirms it was saved.
 
-The Neon database is online, but the Puppy App does not use it from its local backend automatically: local testing still reads `backend/.env`. The hosted app will connect to Neon only after the Render service is created and its environment variables are set in Render. Render free web services sleep after 15 minutes without requests; free Render Postgres expires after 30 days and has no backups. Do not use free staging resources for real research records or a continuous participant study. See [Render’s free service limitations](https://render.com/docs/free) and [Neon’s free plan information](https://neon.com/blog/neon-free-plan-1-gb-per-project).
+Prisma Studio at `localhost:49152` reads the database in the local `backend/.env`; it will not show Neon rows unless deliberately configured with the cloud connection. Keep database credentials private. Render Free can sleep after 15 minutes without a request, so a participant's first request may wait for the service to wake.

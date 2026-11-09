@@ -383,10 +383,10 @@ app.get("/api/responses", requireAdmin, async (_request, response) => {
 
 app.get("/api/participants", requireAdmin, async (_request, response) => {
   const participants = await prisma.participant.findMany({
-    select: { id: true, puppyName: true, enrolledAt: true, status: true, _count: { select: { responses: true } } },
+    select: { id: true, puppyName: true, enrolledAt: true, status: true, assignedVersion: { select: { code: true } }, _count: { select: { responses: true } } },
     orderBy: { enrolledAt: "desc" }
   });
-  response.json(participants);
+  response.json(participants.map(({ _count, ...participant }) => ({ ...participant, responseCount: _count.responses })));
 });
 
 app.use((error, _request, response, _next) => {

@@ -42,6 +42,25 @@
       <p id="admin-status" class="admin-status" role="status" aria-live="polite"></p>
     </section>
 
+    <section class="admin-card" id="participants-card">
+      <div class="admin-section-heading">
+        <div>
+          <h2>参与者注册</h2>
+          <p class="admin-help">显示已在此后台创建参与者记录的人。参与者只有在提交当天回答后，回答表中才会出现记录。</p>
+        </div>
+        <div class="admin-actions">
+          <button id="refresh-participants" class="button button-secondary" type="button">刷新注册</button>
+        </div>
+      </div>
+      <p id="participants-status" class="admin-status" role="status" aria-live="polite">登录后加载注册信息。</p>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr><th>参与者 ID</th><th>小狗名称</th><th>注册时间</th><th>状态</th><th>已提交天数</th><th>分配版本</th></tr></thead>
+          <tbody id="participants-table-body"><tr><td colspan="6">尚未加载参与者。</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
     <section class="admin-card" id="responses-card">
       <div class="admin-section-heading">
         <div>
