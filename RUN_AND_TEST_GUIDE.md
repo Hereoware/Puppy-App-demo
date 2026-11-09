@@ -163,8 +163,10 @@ After login, you should see the trial-order upload and current trial-order list.
    ```
 
 3. Wait for the validation preview. For the supplied file, it should report **30 versions**, each with **24 days**.
-4. Keep or edit the trial-order set name, then click the button labeled **验证并启用** (Validate and activate).
+4. Keep or edit the trial-order set name and enter a category (for example, `Main study`, `Pilot`, or `Backup`), then click **验证并启用** (Validate and activate).
 5. Confirm the success message and check that the new set appears as active in the list.
+
+The signed-in researcher page also lets you filter sets by category, change a set's name/category, or activate an older set for **new participants**. Existing participants keep their assigned version. A set cannot be deleted while it is active or while any participants are assigned to one of its versions; activate a different set first, and preserve assigned sets so participant records remain interpretable.
 
 The importer expects the columns `version`, `day`, `T`, `A`, `E`, `T_label`, and `A_label`. Each version must contain days 1–24 once; T and A must be 0 or 1; E must be an integer from -1 to 10.
 

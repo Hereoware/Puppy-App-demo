@@ -61,6 +61,7 @@ model DailyResponse {
 model TrialOrderSet {
   id        String              @id @default(cuid())
   name      String              @db.VarChar(120)
+  category  String              @default("未分类") @db.VarChar(80)
   active    Boolean             @default(false)
   createdAt DateTime            @default(now()) @db.Timestamptz(3)
   versions  TrialOrderVersion[]

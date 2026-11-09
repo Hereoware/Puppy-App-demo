@@ -33,7 +33,9 @@
       <label for="order-file">AllVersions CSV</label>
       <input id="order-file" type="file" accept=".csv,text/csv" />
       <label for="order-name">版本组名称</label>
-      <input id="order-name" maxlength="120" value="T(12)" />
+      <input id="order-name" maxlength="120" value="T(12)" required />
+      <label for="order-category">分类</label>
+      <input id="order-category" maxlength="80" value="主实验" placeholder="例如：主实验、试点、备用条件" required />
       <p class="admin-help">CSV 必须包含列：version、day、T、A、E、T_label、A_label。请在 Excel 中选择 AllVersions 工作表，使用 UTF-8 CSV 格式另存。</p>
       <div id="upload-preview" class="admin-preview" hidden></div>
       <button id="import-order" class="button button-primary" type="button" disabled>验证并启用</button>
@@ -63,12 +65,14 @@
         </table>
       </div>
     </section>
-    </div>
 
     <section class="admin-card">
       <h2>已上传的版本组</h2>
+      <label for="order-category-filter">按分类查看</label>
+      <select id="order-category-filter"><option value="">所有分类</option></select>
       <div id="order-list"><p class="admin-help">正在读取本地数据库…</p></div>
     </section>
+    </div>
   </main>
 </body>
 </html>

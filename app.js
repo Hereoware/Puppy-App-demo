@@ -16,9 +16,9 @@ const translations = {
   }
 };
 const authCopy = {
-  en: { emulator: "Local test mode: submissions are stored only in the emulator on this computer.", recover: "I already have a recovery code", codeTitle: "Save your recovery code", codeText: "Keep this private code somewhere safe. It is the only way to restore this participant on another device.", codeAction: "Copy code", codeSaved: "I saved my code", codeMissing: "Your recovery code is not available in this browser. Create a new one.", makeCode: "Create a new code", recoverTitle: "Restore your participant", codeLabel: "Recovery code", restore: "Restore my puppy", localOnly: "Firebase is not configured. This run is saved only on this device and is not sent to the study database.", saveFailed: "We could not save today’s response. Please stay on this page and try again.", saved: "Response saved securely." },
-  zh: { emulator: "本地模拟模式：提交记录只保存在这台电脑的模拟器中。", recover: "我有参与者恢复码", codeTitle: "请保存恢复码", codeText: "请妥善保管此私人代码。换设备恢复同一参与者身份时需要使用它。", codeAction: "复制恢复码", codeSaved: "我已保存恢复码", codeMissing: "此浏览器中没有恢复码，请生成一个新码。", makeCode: "生成新恢复码", recoverTitle: "恢复已有参与者", codeLabel: "参与者恢复码", restore: "恢复我的小狗", localOnly: "Firebase 尚未配置。本次记录仅保存在此设备，不会发送到研究数据库。", saveFailed: "今天的回答暂未保存。请留在此页面并重试。", saved: "回答已安全保存。" },
-  es: { emulator: "Modo de prueba local: las respuestas solo se guardan en el emulador de este equipo.", recover: "Ya tengo un código de recuperación", codeTitle: "Guarda tu código de recuperación", codeText: "Guarda este código privado en un lugar seguro. Lo necesitarás para restaurar este participante en otro dispositivo.", codeAction: "Copiar código", codeSaved: "He guardado mi código", codeMissing: "Este navegador no tiene el código. Crea uno nuevo.", makeCode: "Crear código nuevo", recoverTitle: "Restaurar participante", codeLabel: "Código de recuperación", restore: "Restaurar mi cachorro", localOnly: "Firebase no está configurado. Esta sesión solo se guarda en este dispositivo y no se envía a la base de datos.", saveFailed: "No pudimos guardar la respuesta de hoy. Quédate en esta página e inténtalo de nuevo.", saved: "Respuesta guardada de forma segura." }
+  en: { emulator: "Local test mode: submissions are stored only in the emulator on this computer.", recover: "I already have a recovery code", codeTitle: "Save your recovery code", codeText: "Keep this private code somewhere safe. It is the only way to restore this participant on another device.", codeAction: "Copy code", codeSaved: "I saved my code", codeMissing: "Your recovery code is not available in this browser. Create a new one.", makeCode: "Create a new code", recoverTitle: "Restore your participant", codeLabel: "Recovery code", restore: "Restore my puppy", localOnly: "Firebase is not configured. This run is saved only on this device and is not sent to the study database.", saveFailed: "We could not save today’s response. Please stay on this page and try again.", retrySave: "Retry saving today’s response", saved: "Response saved securely." },
+  zh: { emulator: "本地模拟模式：提交记录只保存在这台电脑的模拟器中。", recover: "我有参与者恢复码", codeTitle: "请保存恢复码", codeText: "请妥善保管此私人代码。换设备恢复同一参与者身份时需要使用它。", codeAction: "复制恢复码", codeSaved: "我已保存恢复码", codeMissing: "此浏览器中没有恢复码，请生成一个新码。", makeCode: "生成新恢复码", recoverTitle: "恢复已有参与者", codeLabel: "参与者恢复码", restore: "恢复我的小狗", localOnly: "Firebase 尚未配置。本次记录仅保存在此设备，不会发送到研究数据库。", saveFailed: "今天的回答暂未保存。请留在此页面并重试。", retrySave: "重试保存今天的回答", saved: "回答已安全保存。" },
+  es: { emulator: "Modo de prueba local: las respuestas solo se guardan en el emulador de este equipo.", recover: "Ya tengo un código de recuperación", codeTitle: "Guarda tu código de recuperación", codeText: "Guarda este código privado en un lugar seguro. Lo necesitarás para restaurar este participante en otro dispositivo.", codeAction: "Copiar código", codeSaved: "He guardado mi código", codeMissing: "Este navegador no tiene el código. Crea uno nuevo.", makeCode: "Crear código nuevo", recoverTitle: "Restaurar participante", codeLabel: "Código de recuperación", restore: "Restaurar mi cachorro", localOnly: "Firebase no está configurado. Esta sesión solo se guarda en este dispositivo y no se envía a la base de datos.", saveFailed: "No pudimos guardar la respuesta de hoy. Quédate en esta página e inténtalo de nuevo.", retrySave: "Reintentar guardar la respuesta de hoy", saved: "Respuesta guardada de forma segura." }
 };
 const neutralCopy = {
   en: {
@@ -448,6 +448,7 @@ function renderComplete() {
       if (isPostgresTrial()) {
         if (!state.postgresParticipant) throw new Error("Start a new local trial with ?backend=postgres before submitting.");
         state.requestId ||= (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+        saveState();
         await postgresRequest("responses", {
           participantId: state.participantId,
           studyDay: studyDay(),
@@ -459,13 +460,14 @@ function renderComplete() {
         showToast(language === "zh" ? "试验记录已保存到本地数据库。" : language === "es" ? "Respuesta guardada en la base de datos local." : "Trial response saved to the local database.");
       } else if (hasFirebaseConfig() && state.firebaseUid) {
         state.requestId ||= (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+        saveState();
         await (await firebaseData()).submitDailyResponse({ studyDay: studyDay(), predictedEScore: state.predictedEScore, interactions: { fed: Boolean(state.interactions?.fed), played: Boolean(state.interactions?.played) }, requestId: state.requestId });
         showToast(ac("saved"));
       } else if (hasFirebaseConfig()) {
         throw new Error(ac("saveFailed"));
       }
       state.completedToday = true; state.completedDate = todayKey(); state.screen = "home"; saveState(); render();
-    } catch (error) { console.error("Daily response was not confirmed", error); showToast(ac("saveFailed")); button.disabled = false; }
+    } catch (error) { console.error("Daily response was not confirmed", error); showToast(ac("saveFailed")); button.textContent = ac("retrySave"); button.disabled = false; }
   });
 }
 function renderLocked() {

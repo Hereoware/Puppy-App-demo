@@ -67,6 +67,7 @@ const importedTrialSchema = z.object({
 });
 const trialOrderImportSchema = z.object({
   name: z.string().trim().min(1).max(120),
+  category: z.string().trim().min(1).max(80).default("未分类"),
   versions: z.array(z.object({
     code: z.string().trim().min(1).max(40),
     trials: z.array(importedTrialSchema).length(24)
@@ -81,6 +82,10 @@ const trialOrderImportSchema = z.object({
       context.addIssue({ code: "custom", path: ["versions", versionIndex, "trials"], message: `${version.code} must contain each day 1–24 exactly once.` });
     }
   });
+});
+const trialOrderMetadataSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  category: z.string().trim().min(1).max(80)
 });
 
 const adminLoginAttempts = new Map();
@@ -156,6 +161,7 @@ app.get("/api/admin/trial-orders", requireAdmin, async (_request, response) => {
   response.json(sets.map((set) => ({
     id: set.id,
     name: set.name,
+    category: set.category,
     active: set.active,
     createdAt: set.createdAt,
     versions: set.versions.map((version) => ({ code: version.code, assignedCount: version._count.assigned, days: version.trials.length }))
@@ -171,6 +177,7 @@ app.post("/api/admin/trial-orders", requireAdmin, async (request, response) => {
     return tx.trialOrderSet.create({
       data: {
         name: payload.name,
+        category: payload.category,
         active: true,
         versions: {
           create: payload.versions.map((version) => ({
@@ -183,6 +190,39 @@ app.post("/api/admin/trial-orders", requireAdmin, async (request, response) => {
     });
   });
   response.status(201).json({ id: created.id, name: created.name, versionCount: created._count.versions, active: created.active });
+});
+
+app.patch("/api/admin/trial-orders/:id", requireAdmin, async (request, response) => {
+  const parsed = trialOrderMetadataSchema.safeParse(request.body);
+  if (!parsed.success) return response.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid trial-order details." });
+  const existing = await prisma.trialOrderSet.findUnique({ where: { id: request.params.id }, select: { id: true } });
+  if (!existing) return response.status(404).json({ error: "Trial-order set was not found." });
+  const set = await prisma.trialOrderSet.update({ where: { id: existing.id }, data: parsed.data });
+  response.json({ id: set.id, name: set.name, category: set.category, active: set.active });
+});
+
+app.post("/api/admin/trial-orders/:id/activate", requireAdmin, async (request, response) => {
+  const existing = await prisma.trialOrderSet.findUnique({ where: { id: request.params.id }, include: { _count: { select: { versions: true } } } });
+  if (!existing) return response.status(404).json({ error: "Trial-order set was not found." });
+  if (!existing._count.versions) return response.status(409).json({ error: "This set has no versions to assign." });
+  await prisma.$transaction(async (tx) => {
+    await tx.trialOrderSet.updateMany({ where: { active: true }, data: { active: false } });
+    await tx.trialOrderSet.update({ where: { id: existing.id }, data: { active: true } });
+  });
+  response.json({ id: existing.id, active: true });
+});
+
+app.delete("/api/admin/trial-orders/:id", requireAdmin, async (request, response) => {
+  const existing = await prisma.trialOrderSet.findUnique({
+    where: { id: request.params.id },
+    include: { versions: { select: { _count: { select: { assigned: true } } } } }
+  });
+  if (!existing) return response.status(404).json({ error: "Trial-order set was not found." });
+  if (existing.active) return response.status(409).json({ error: "Activate another trial-order set before deleting the active set." });
+  const assignedCount = existing.versions.reduce((sum, version) => sum + version._count.assigned, 0);
+  if (assignedCount > 0) return response.status(409).json({ error: `Cannot delete this set because ${assignedCount} participant(s) are assigned to it.` });
+  await prisma.trialOrderSet.delete({ where: { id: existing.id } });
+  response.status(204).end();
 });
 
 async function chooseActiveVersion() {
