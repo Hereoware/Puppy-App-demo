@@ -343,7 +343,9 @@ function moveActivityDrag(event) {
   dragStart.lastX = event.clientX;
   activityLastPoint = { x: event.clientX, y: event.clientY };
   const delta = event.clientX - dragStart.x;
-  event.currentTarget.style.transform = `translate(${Math.max(-90, Math.min(90, delta))}px, ${event.clientY - dragStart.y}px)`;
+  // Let the disc travel the full distance to the puppy. The previous ±90 px
+  // clamp made the visible target unreachable on wider screens and some phones.
+  event.currentTarget.style.transform = `translate(${delta}px, ${event.clientY - dragStart.y}px)`;
   if (interactionKind === "tug") document.querySelector(".activity-playground")?.classList.toggle("rope-pulling", Math.abs(delta) > 12);
 }
 function finishActivityDrag(event) {
