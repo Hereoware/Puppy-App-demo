@@ -4,7 +4,7 @@
   "short_name": "Puppy Day",
   "description": "Spend a little time with your puppy every day",
   "lang": "en",
-  "start_url": "./",
+  "start_url": "./?backend=postgres",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

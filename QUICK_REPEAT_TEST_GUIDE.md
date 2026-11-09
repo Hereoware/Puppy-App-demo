@@ -88,22 +88,45 @@ This stops PostgreSQL and preserves its local data volume for your next session.
 
 ## Repeat a Cloud Staging Test
 
-Use the Render service URL shown on its Render Dashboard. Check the database connection first:
+Use this path when you or a participant will test from another computer or phone over the internet. **Render runs the hosted app and connects it to Neon; you do not need to start Rancher Desktop, Docker Compose, or `npm run dev` in VS Code for a cloud test.** VS Code is still needed when you edit files, commit, and push updates to GitHub. Local and cloud databases are separate.
+
+### 1. Deploy the latest code (only after code changes)
+
+If you changed the app in VS Code, commit and push those changes to the GitHub branch connected to Render. In Render, open the `puppy-study-platform` web service and wait for its latest deploy to show **Live**. Check the deploy log for successful database migrations. If you have not changed code since the last successful deploy, you can skip this step.
+
+### 2. Copy the real Render service URL
+
+In the Render Dashboard, open the web service and copy its **Service URL**. Do not type the example text `YOUR-SERVICE` literally. For example, if Render shows `https://puppy-study-platform.onrender.com`, use that exact base URL in the steps below. Your assigned URL may differ.
+
+Check the hosted API and database:
 
 ```text
-https://YOUR-SERVICE.onrender.com/api/health
+<YOUR-REAL-RENDER-URL>/api/health
 ```
 
-Continue when the result reports `"database":"connected"`. Then:
+Continue when the result reports `"database":"connected"`.
 
-1. Open `https://YOUR-SERVICE.onrender.com/admin` and sign in with the Render `ADMIN_PASSWORD`.
-2. Confirm a trial-order set is active. Upload one only if needed.
-3. Open `https://YOUR-SERVICE.onrender.com/?backend=postgres` in a private/incognito window.
-4. Create a new test participant, save the recovery code, complete the visit, and confirm the completion message.
+### 3. Prepare the cloud trial order
 
-Each new visit is saved to the Neon cloud database, not the local PostgreSQL container. A free Render service may need about a minute to wake after inactivity. Use synthetic test data in staging.
+Open `<YOUR-REAL-RENDER-URL>/admin` and sign in with the Render `ADMIN_PASSWORD`. Confirm that a trial-order set is active. If none is listed, upload the AllVersions CSV here and click **验证并启用**. Uploading the CSV to `localhost:3001/admin` only changes the local database; it does not upload the file to Neon.
 
-To review submitted answers, open the same `/admin` page, sign in, and use the **Participant Responses** table. Select **Refresh** to load the latest records or **Export CSV** to download them. Keep the CSV in the storage location approved for your study.
+### 4. Run a cloud participant test
+
+Open this URL in a private/incognito window, using the same real Render base URL:
+
+```text
+<YOUR-REAL-RENDER-URL>/?backend=postgres
+```
+
+Create a new synthetic test participant, save the recovery code, complete the visit, and wait for the app to confirm the response was saved. A participant enrolled before a trial order was activated is not automatically assigned one; create a fresh test participant after activation.
+
+To install the cloud trial on a phone's Home Screen, first open the participant URL above (including `?backend=postgres`) after the latest deployment is Live, then use the browser's **Add to Home Screen** action. The web app manifest starts the installed app in PostgreSQL mode. If the app was installed before this update, remove the old Home Screen shortcut and add it again from the updated participant URL so the phone picks up the corrected launch address and service-worker cache.
+
+### 5. Review registrations and answers
+
+Return to `<YOUR-REAL-RENDER-URL>/admin` and sign in. Refresh **参与者注册** to see participant ID, puppy name, enrollment time, status, assigned version, and submitted-day count. Refresh **参与者回答** to see daily answers or export them as CSV. Registration appears when the participant record is created; a daily answer appears only after a successful end-of-day submission.
+
+These records are stored in the Neon cloud database, not the local PostgreSQL container. Local Prisma Studio usually reads the database in `backend/.env`; it will not show cloud records unless explicitly configured for Neon. A free Render service may take about a minute to wake after inactivity. Use synthetic test data in staging.
 
 Render Free web services spin down after 15 minutes without inbound traffic and wake when the next request arrives. There is no Free setting that keeps the service continuously running; paid compute plans stay on and incur a recurring compute charge. Check [Render's current pricing](https://render.com/pricing) before changing plans. See [Render's Free service limits](https://render.com/docs/free).
 
@@ -115,7 +138,8 @@ Render Free web services spin down after 15 minutes without inbound traffic and 
 | Local health check reports a database error | Confirm Rancher Desktop is running and `docker compose ps` shows PostgreSQL as healthy. |
 | “No trial order is active” | Sign in to `/admin`, activate a valid trial-order CSV, then enroll a new participant. |
 | A participant is locked for today | Use a new test participant in a fresh private/incognito window. |
-| Cloud health check fails | Check that the Render service is **Live** and inspect its latest deploy/runtime logs. |
+| Browser says `DNS_PROBE_FINISHED_NXDOMAIN` for `your-service.onrender.com` | `your-service` was example text. Copy the actual **Service URL** from the Render Dashboard and use it as the base URL. |
+| Cloud health check fails | Check that the Render service is **Live**, confirm you copied the actual **Service URL**, and inspect its latest deploy/runtime logs. |
 | Cloud page is slow on first open | The free Render service may be waking from idle; wait and refresh once. |
 
 Do not share participant recovery codes, passwords, or database connection strings in screenshots or chat.
