@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -10,87 +10,108 @@
 </head>
 <body>
   <main class="admin-shell">
-    <a class="admin-back" href="/">← 返回 Puppy Day</a>
+    <div class="admin-toolbar">
+      <a id="admin-back" class="admin-back" href="/">← Back to Puppy Day</a>
+      <label class="language-picker admin-language-picker">
+        <span id="admin-language-label">Language</span>
+        <select id="admin-language-select" aria-label="Language">
+          <option value="en">English</option>
+          <option value="zh">中文</option>
+          <option value="es">Español</option>
+        </select>
+      </label>
+    </div>
+
     <header class="admin-header">
-      <p class="eyebrow">研究者工具</p>
-      <h1>Trial Order 管理</h1>
-      <p>上传 Excel 中 <strong>AllVersions</strong> 工作表另存的 CSV。每个版本须包含第 1–24 天；参与者注册时，系统会从当前启用的版本中随机分配一个。</p>
+      <p id="admin-eyebrow" class="eyebrow">Researcher Tools</p>
+      <h1 id="admin-title">Trial Order Admin</h1>
+      <p id="admin-intro">Upload the CSV exported from the <strong>AllVersions</strong> worksheet in Excel. Each version must contain days 1–24; new participants are randomly assigned to one version from the currently active set.</p>
     </header>
 
-    <div class="admin-warning" role="note"><strong>研究测试平台：</strong>使用研究者密码登录。部署上线前请完成 IRB、数据处理和访问权限审核；不要在未经批准的情况下录入真实参与者数据。</div>
+    <div class="admin-warning" role="note"><strong id="admin-warning-title">Research test platform:</strong> <span id="admin-warning-text">Sign in with the researcher password. Before deployment, complete IRB, data-handling, and access reviews; do not enter real participant data without approval.</span></div>
 
     <section class="admin-card" id="admin-login-card">
-      <h2>研究者登录</h2>
-      <form id="admin-login-form"><label for="admin-password">研究者密码</label><input id="admin-password" type="password" autocomplete="current-password" required minlength="16" /><button class="button button-primary" type="submit">登录</button></form>
+      <h2 id="login-title">Researcher Sign In</h2>
+      <form id="admin-login-form">
+        <label id="admin-password-label" for="admin-password">Researcher password</label>
+        <input id="admin-password" type="password" autocomplete="current-password" required minlength="16" />
+        <button id="admin-login-button" class="button button-primary" type="submit">Sign in</button>
+      </form>
       <p id="admin-login-status" class="admin-status" role="status" aria-live="polite"></p>
     </section>
 
     <div id="admin-content" hidden>
-    <button id="admin-logout" class="button button-secondary" type="button">退出登录</button>
+      <button id="admin-logout" class="button button-secondary" type="button">Sign out</button>
 
-    <section class="admin-card">
-      <h2>上传一个 trial order</h2>
-      <label for="order-file">AllVersions CSV</label>
-      <input id="order-file" type="file" accept=".csv,text/csv" />
-      <label for="order-name">版本组名称</label>
-      <input id="order-name" maxlength="120" value="T(12)" required />
-      <label for="order-category">分类</label>
-      <input id="order-category" maxlength="80" value="主实验" placeholder="例如：主实验、试点、备用条件" required />
-      <p class="admin-help">CSV 必须包含列：version、day、T、A、E、T_label、A_label。请在 Excel 中选择 AllVersions 工作表，使用 UTF-8 CSV 格式另存。</p>
-      <div id="upload-preview" class="admin-preview" hidden></div>
-      <button id="import-order" class="button button-primary" type="button" disabled>验证并启用</button>
-      <p id="admin-status" class="admin-status" role="status" aria-live="polite"></p>
-    </section>
+      <section class="admin-card">
+        <h2 id="upload-title">Upload a trial order</h2>
+        <label id="order-file-label" for="order-file">AllVersions CSV</label>
+        <input id="order-file" type="file" accept=".csv,text/csv" />
+        <label id="order-name-label" for="order-name">Version set name</label>
+        <input id="order-name" maxlength="120" value="T(12)" required />
+        <label id="order-category-label" for="order-category">Category</label>
+        <input id="order-category" maxlength="80" required />
+        <label id="order-group-label" for="order-group">Study Group</label>
+        <select id="order-group">
+          <option id="order-group-treatment" value="TREATMENT">Treatment</option>
+          <option id="order-group-control" value="CONTROL">Control</option>
+        </select>
+        <p id="upload-help" class="admin-help">The CSV must contain the columns: version, day, T, A, E, T_label, A_label. In Excel, choose the AllVersions worksheet and save it as a UTF-8 CSV.</p>
+        <div id="upload-preview" class="admin-preview" hidden></div>
+        <button id="import-order" class="button button-primary" type="button" disabled>Validate and activate</button>
+        <p id="admin-status" class="admin-status" role="status" aria-live="polite"></p>
+      </section>
 
-    <section class="admin-card" id="participants-card">
-      <div class="admin-section-heading">
-        <div>
-          <h2>参与者注册</h2>
-          <p class="admin-help">显示已在此后台创建参与者记录的人。参与者只有在提交当天回答后，回答表中才会出现记录。</p>
+      <section class="admin-card" id="participants-card">
+        <div class="admin-section-heading">
+          <div>
+            <h2 id="participants-title">Participant Enrollment</h2>
+            <p id="participants-help" class="admin-help">Shows participants created in this backend. The responses table only shows rows after a participant submits a response for that day.</p>
+          </div>
+          <div class="admin-actions">
+            <button id="refresh-participants" class="button button-secondary" type="button">Refresh enrollment</button>
+          </div>
         </div>
-        <div class="admin-actions">
-          <button id="refresh-participants" class="button button-secondary" type="button">刷新注册</button>
+        <p id="participants-status" class="admin-status" role="status" aria-live="polite">Load enrollment after signing in.</p>
+        <div id="participants-group-summary" class="participant-group-summary" aria-live="polite"></div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th id="participants-head-id">Participant ID</th><th id="participants-head-name">Puppy Name</th><th id="participants-head-enrolled">Enrolled At</th><th id="participants-head-status">Status</th><th id="participants-head-days">Submitted Days</th><th id="participants-head-group">Assigned Group</th><th id="participants-head-version">Assigned Version</th></tr></thead>
+            <tbody id="participants-table-body"><tr><td colspan="7">No participants loaded yet.</td></tr></tbody>
+          </table>
         </div>
-      </div>
-      <p id="participants-status" class="admin-status" role="status" aria-live="polite">登录后加载注册信息。</p>
-      <div class="admin-table-wrap">
-        <table class="admin-table">
-          <thead><tr><th>参与者 ID</th><th>小狗名称</th><th>注册时间</th><th>状态</th><th>已提交天数</th><th>分配版本</th></tr></thead>
-          <tbody id="participants-table-body"><tr><td colspan="6">尚未加载参与者。</td></tr></tbody>
-        </table>
-      </div>
-    </section>
+      </section>
 
-    <section class="admin-card" id="responses-card">
-      <div class="admin-section-heading">
-        <div>
-          <h2>参与者回答</h2>
-          <p class="admin-help">已保存到云端数据库的每日回答。参与者 ID 用于关联同一参与者的多天记录。</p>
+      <section class="admin-card" id="responses-card">
+        <div class="admin-section-heading">
+          <div>
+            <h2 id="responses-title">Participant Responses</h2>
+            <p id="responses-help" class="admin-help">Daily responses saved to the study database. Participant ID links multiple study days to the same participant.</p>
+          </div>
+          <div class="admin-actions">
+            <button id="refresh-responses" class="button button-secondary" type="button">Refresh</button>
+            <button id="export-responses" class="button button-primary" type="button" disabled>Export CSV</button>
+          </div>
         </div>
-        <div class="admin-actions">
-          <button id="refresh-responses" class="button button-secondary" type="button">刷新</button>
-          <button id="export-responses" class="button button-primary" type="button" disabled>导出 CSV</button>
+        <p id="responses-status" class="admin-status" role="status" aria-live="polite">Load responses after signing in.</p>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr>
+              <th id="responses-head-id">Participant ID</th><th id="responses-head-name">Puppy Name</th><th id="responses-head-group">Assigned Group</th><th id="responses-head-version">Assigned Version</th><th id="responses-head-date">Date</th><th id="responses-head-day">Day</th>
+              <th id="responses-head-pred-mood">Predicted Mood</th><th id="responses-head-actual-mood">Actual Mood</th><th id="responses-head-pred-e">Predicted E</th><th id="responses-head-actual-e">Actual E</th>
+              <th id="responses-head-t">T</th><th id="responses-head-a">A</th><th id="responses-head-fed">Fed</th><th id="responses-head-played">Played</th>
+            </tr></thead>
+            <tbody id="responses-table-body"><tr><td colspan="14">No responses loaded yet.</td></tr></tbody>
+          </table>
         </div>
-      </div>
-      <p id="responses-status" class="admin-status" role="status" aria-live="polite">登录后加载回答。</p>
-      <div class="admin-table-wrap">
-        <table class="admin-table">
-          <thead><tr>
-            <th>参与者 ID</th><th>小狗名称</th><th>日期</th><th>天数</th>
-            <th>预测情绪</th><th>实际情绪</th><th>预测 E</th><th>实际 E</th>
-            <th>T</th><th>A</th><th>喂食</th><th>玩耍</th>
-          </tr></thead>
-          <tbody id="responses-table-body"><tr><td colspan="12">尚未加载回答。</td></tr></tbody>
-        </table>
-      </div>
-    </section>
+      </section>
 
-    <section class="admin-card">
-      <h2>已上传的版本组</h2>
-      <label for="order-category-filter">按分类查看</label>
-      <select id="order-category-filter"><option value="">所有分类</option></select>
-      <div id="order-list"><p class="admin-help">正在读取本地数据库…</p></div>
-    </section>
+      <section class="admin-card">
+        <h2 id="orders-title">Uploaded Version Sets</h2>
+        <label id="order-category-filter-label" for="order-category-filter">Filter by category</label>
+        <select id="order-category-filter"><option value="">All categories</option></select>
+        <div id="order-list"><p id="order-list-loading" class="admin-help">Reading the local database…</p></div>
+      </section>
     </div>
   </main>
 </body>

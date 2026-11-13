@@ -1,0 +1,283 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Puppy App Short-Term Test Guideline</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #5b6472;
+      --accent: #2563eb;
+      --accent-soft: #dbeafe;
+      --border: #d7deea;
+      --ok: #166534;
+      --warn: #92400e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+    }
+    .page {
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 32px 20px 56px;
+    }
+    .hero, .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+    }
+    .hero {
+      padding: 28px;
+      margin-bottom: 20px;
+    }
+    .card {
+      padding: 22px;
+      margin: 16px 0;
+    }
+    h1, h2, h3 { margin: 0 0 12px; }
+    h1 { font-size: 2rem; }
+    h2 { font-size: 1.3rem; margin-top: 6px; }
+    h3 { font-size: 1rem; margin-top: 18px; }
+    p, li { color: var(--text); }
+    .muted { color: var(--muted); }
+    .pill {
+      display: inline-block;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 0.9rem;
+      margin-bottom: 12px;
+    }
+    code {
+      font-family: Consolas, monospace;
+      background: #eef2ff;
+      padding: 2px 6px;
+      border-radius: 6px;
+    }
+    pre {
+      background: #0f172a;
+      color: #e5eefc;
+      padding: 14px;
+      border-radius: 12px;
+      overflow-x: auto;
+      margin: 10px 0 0;
+    }
+    ul, ol { padding-left: 22px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 14px;
+    }
+    .note, .warning, .success {
+      border-left: 5px solid;
+      padding: 12px 14px;
+      border-radius: 12px;
+      margin: 12px 0;
+    }
+    .note { background: #eff6ff; border-color: var(--accent); }
+    .warning { background: #fff7ed; border-color: #f59e0b; }
+    .success { background: #f0fdf4; border-color: #22c55e; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 0.96rem;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f8fafc; }
+    .footer {
+      color: var(--muted);
+      font-size: 0.92rem;
+      margin-top: 24px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div class="pill">Short-Term Test Guideline</div>
+      <h1>Puppy App Quick Trial Test</h1>
+      <p class="muted">
+        Use this guide to test the compressed local study schedule. Right now the app is configured so that
+        <code>1 study day = 60 real minutes</code> in local PostgreSQL mode.
+      </p>
+      <div class="success">
+        <strong>Current local setting:</strong> <code>backend/.env</code> contains <code>PUPPY_STUDY_DAY_MINUTES=60</code>.
+        That means you can move through many of the 24 study days within one real day.
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>What this test is for</h2>
+      <ul>
+        <li>Verify that a participant can complete Day 1, then unlock Day 2 one hour later.</li>
+        <li>Verify that the app blocks repeat submissions within the same study block.</li>
+        <li>Verify that later study days load new assigned trials correctly.</li>
+        <li>Verify that recovery codes and participant restore still work.</li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Before you start</h2>
+      <div class="grid">
+        <div>
+          <h3>Need running</h3>
+          <ul>
+            <li>Rancher Desktop or Docker engine</li>
+            <li>Local PostgreSQL container</li>
+            <li>Node backend on port <code>3001</code></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Need ready</h3>
+          <ul>
+            <li>An active trial order in <code>/admin</code></li>
+            <li>A private/incognito browser window</li>
+            <li>A place to save the participant recovery code</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Step 1 — Start the local test environment</h2>
+      <ol>
+        <li>Open a terminal in the project root.</li>
+        <li>Start the database:</li>
+      </ol>
+      <pre>docker compose up -d
+docker compose ps</pre>
+      <ol start="3">
+        <li>Start the app:</li>
+      </ol>
+      <pre>npm run dev</pre>
+      <ol start="4">
+        <li>Check health at <code>http://localhost:3001/api/health</code>.</li>
+        <li>Open <code>http://localhost:3001/admin</code> and confirm a trial-order set is active.</li>
+      </ol>
+    </section>
+
+    <section class="card">
+      <h2>Step 2 — Start a participant test</h2>
+      <ol>
+        <li>Open a private/incognito browser window.</li>
+        <li>Go to <code>http://localhost:3001/?backend=postgres</code>.</li>
+        <li>Create a new synthetic participant.</li>
+        <li>Save the recovery code shown by the app.</li>
+        <li>Complete the full visit for the current study day.</li>
+      </ol>
+      <div class="note">
+        After you submit, that participant is locked for the current 60-minute study block.
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Step 3 — Verify the lock behavior</h2>
+      <ol>
+        <li>Refresh the participant page right after completion.</li>
+        <li>Confirm the app shows the locked/completed state.</li>
+        <li>Confirm you cannot submit another response in the same hour block.</li>
+      </ol>
+      <div class="warning">
+        If you want to repeat Day 1 immediately, create a brand-new participant in a fresh incognito window.
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Step 4 — Verify next-day unlock</h2>
+      <ol>
+        <li>Wait until 60 minutes have passed since that participant enrolled.</li>
+        <li>Reopen the app with the same participant or restore it using the recovery code.</li>
+        <li>Confirm the next study day is now available.</li>
+        <li>Complete that new study day and confirm it saves successfully.</li>
+      </ol>
+      <div class="note">
+        The study day changes based on elapsed time since enrollment, not midnight, when using this local quick-test mode.
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Suggested one-day test plan</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Action</th>
+            <th>What to verify</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Hour 0</td>
+            <td>Create participant and complete Day 1</td>
+            <td>Response saves, participant locks</td>
+          </tr>
+          <tr>
+            <td>Hour 1</td>
+            <td>Return and complete Day 2</td>
+            <td>New trial loads, save succeeds</td>
+          </tr>
+          <tr>
+            <td>Hour 2</td>
+            <td>Restore participant with recovery code</td>
+            <td>Recovery flow still works</td>
+          </tr>
+          <tr>
+            <td>Hour 3+</td>
+            <td>Repeat with same participant</td>
+            <td>Each new block unlocks exactly one new study day</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>Optional database check</h2>
+      <ol>
+        <li>Open a second terminal.</li>
+        <li>Run:</li>
+      </ol>
+      <pre>npm run db:studio</pre>
+      <ol start="3">
+        <li>Inspect <code>Participant</code> and <code>DailyResponse</code>.</li>
+        <li>Confirm each completed study block creates one saved response for the expected <code>studyDay</code>.</li>
+      </ol>
+    </section>
+
+    <section class="card">
+      <h2>If you want it faster</h2>
+      <p>Edit <code>backend/.env</code> and change:</p>
+      <pre>PUPPY_STUDY_DAY_MINUTES=60</pre>
+      <p>Examples:</p>
+      <ul>
+        <li><code>30</code> → one study day every 30 minutes</li>
+        <li><code>15</code> → one study day every 15 minutes</li>
+        <li><code>1440</code> → normal one-day schedule</li>
+      </ul>
+      <div class="warning">
+        Restart <code>npm run dev</code> after changing the value so the backend picks up the new schedule.
+      </div>
+    </section>
+
+    <p class="footer">File created for local quick testing of the Puppy App compressed study schedule.</p>
+  </main>
+</body>
+</html>

@@ -1,4 +1,4 @@
-# Puppy App: Quick Repeat Test Guide
+﻿# Puppy App: Quick Repeat Test Guide
 
 Use this guide after the one-time setup is complete. It covers repeat testing of the local backend and the deployed Render staging app.
 
@@ -32,6 +32,8 @@ npm run dev
 
 This starts the Node.js backend. It serves the app and API on port 3001 and connects to the local database using `backend/.env`. Keep this terminal open while testing.
 
+This repo is now configured for a compressed local schedule: `backend/.env` sets `PUPPY_STUDY_DAY_MINUTES=60`, so each study day unlocks one hour after enrollment instead of waiting for the next calendar day. Change it back to `1440` if you want the normal one-day cadence.
+
 Check the connection at:
 
 ```text
@@ -64,7 +66,7 @@ http://localhost:3001/?backend=postgres
 
 Create a new test participant and save the recovery code shown during enrollment. Complete the visit and confirm the completion message appears.
 
-The server locks a participant's completed study day. To repeat a Day 1 visit on the same date, create a new test participant in a fresh private window. The study day follows the actual calendar date; this database flow does not have a “next day” simulation button.
+The server locks a participant's completed study day until the next study window opens. With the current local quick-test setting, that means one hour per study day. To repeat a Day 1 visit immediately, create a new test participant in a fresh private window.
 
 ### 5. Optionally inspect saved records
 
@@ -108,7 +110,7 @@ Continue when the result reports `"database":"connected"`.
 
 ### 3. Prepare the cloud trial order
 
-Open `<YOUR-REAL-RENDER-URL>/admin` and sign in with the Render `ADMIN_PASSWORD`. Confirm that a trial-order set is active. If none is listed, upload the AllVersions CSV here and click **验证并启用**. Uploading the CSV to `localhost:3001/admin` only changes the local database; it does not upload the file to Neon.
+Open `<YOUR-REAL-RENDER-URL>/admin` and sign in with the Render `ADMIN_PASSWORD`. Confirm that a trial-order set is active. If none is listed, upload the AllVersions CSV here and click **楠岃瘉骞跺惎鐢?*. Uploading the CSV to `localhost:3001/admin` only changes the local database; it does not upload the file to Neon.
 
 ### 4. Run a cloud participant test
 
@@ -124,7 +126,7 @@ To install the cloud trial on a phone's Home Screen, first open the participant 
 
 ### 5. Review registrations and answers
 
-Return to `<YOUR-REAL-RENDER-URL>/admin` and sign in. Refresh **参与者注册** to see participant ID, puppy name, enrollment time, status, assigned version, and submitted-day count. Refresh **参与者回答** to see daily answers or export them as CSV. Registration appears when the participant record is created; a daily answer appears only after a successful end-of-day submission.
+Return to `<YOUR-REAL-RENDER-URL>/admin` and sign in. Refresh **鍙備笌鑰呮敞鍐?* to see participant ID, puppy name, enrollment time, status, assigned version, and submitted-day count. Refresh **鍙備笌鑰呭洖绛?* to see daily answers or export them as CSV. Registration appears when the participant record is created; a daily answer appears only after a successful end-of-day submission.
 
 These records are stored in the Neon cloud database, not the local PostgreSQL container. Local Prisma Studio usually reads the database in `backend/.env`; it will not show cloud records unless explicitly configured for Neon. A free Render service may take about a minute to wake after inactivity. Use synthetic test data in staging.
 
@@ -136,10 +138,13 @@ Render Free web services spin down after 15 minutes without inbound traffic and 
 | --- | --- |
 | `localhost:3001` does not open | Confirm the `npm run dev` terminal is still running. |
 | Local health check reports a database error | Confirm Rancher Desktop is running and `docker compose ps` shows PostgreSQL as healthy. |
-| “No trial order is active” | Sign in to `/admin`, activate a valid trial-order CSV, then enroll a new participant. |
+| 鈥淣o trial order is active鈥?| Sign in to `/admin`, activate a valid trial-order CSV, then enroll a new participant. |
 | A participant is locked for today | Use a new test participant in a fresh private/incognito window. |
 | Browser says `DNS_PROBE_FINISHED_NXDOMAIN` for `your-service.onrender.com` | `your-service` was example text. Copy the actual **Service URL** from the Render Dashboard and use it as the base URL. |
 | Cloud health check fails | Check that the Render service is **Live**, confirm you copied the actual **Service URL**, and inspect its latest deploy/runtime logs. |
 | Cloud page is slow on first open | The free Render service may be waking from idle; wait and refresh once. |
 
 Do not share participant recovery codes, passwords, or database connection strings in screenshots or chat.
+
+
+

@@ -13,22 +13,29 @@ enum ParticipantStatus {
   TERMINATED
 }
 
+enum StudyGroup {
+  TREATMENT
+  CONTROL
+}
+
 enum MoodPrediction {
   HAPPY
   SAD
 }
 
 model Participant {
-  id                 String            @id @default(cuid())
-  puppyName          String            @db.VarChar(24)
-  enrolledAt         DateTime          @default(now()) @db.Timestamptz(3)
-  timeZone           String            @default("America/New_York")
-  status             ParticipantStatus @default(ACTIVE)
-  recoveryCodeDigest String?           @unique
+  id                 String             @id @default(cuid())
+  puppyName          String             @db.VarChar(24)
+  enrolledAt         DateTime           @default(now()) @db.Timestamptz(3)
+  timeZone           String             @default("America/New_York")
+  status             ParticipantStatus  @default(ACTIVE)
+  recoveryCodeDigest String?            @unique
+  assignedGroup      StudyGroup?
   assignedVersionId  String?
   assignedVersion    TrialOrderVersion? @relation(fields: [assignedVersionId], references: [id], onDelete: SetNull)
   responses          DailyResponse[]
 
+  @@index([assignedGroup])
   @@index([assignedVersionId])
 }
 
@@ -59,12 +66,15 @@ model DailyResponse {
 }
 
 model TrialOrderSet {
-  id        String              @id @default(cuid())
-  name      String              @db.VarChar(120)
-  category  String              @default("未分类") @db.VarChar(80)
-  active    Boolean             @default(false)
-  createdAt DateTime            @default(now()) @db.Timestamptz(3)
-  versions  TrialOrderVersion[]
+  id              String              @id @default(cuid())
+  name            String              @db.VarChar(120)
+  category        String              @default("Uncategorized") @db.VarChar(80)
+  assignmentGroup StudyGroup          @default(TREATMENT)
+  active          Boolean             @default(false)
+  createdAt       DateTime            @default(now()) @db.Timestamptz(3)
+  versions        TrialOrderVersion[]
+
+  @@index([assignmentGroup, active])
 }
 
 model TrialOrderVersion {
@@ -79,3 +89,4 @@ model TrialOrderVersion {
   @@unique([setId, code])
   @@index([setId])
 }
+

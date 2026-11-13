@@ -1,2 +1,3 @@
 ALTER TABLE "TrialOrderSet"
-ADD COLUMN "category" VARCHAR(80) NOT NULL DEFAULT '未分类';
+ADD COLUMN "category" VARCHAR(80) NOT NULL DEFAULT 'Uncategorized';
+

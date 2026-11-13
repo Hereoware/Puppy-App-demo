@@ -1,6 +1,7 @@
 const app = document.querySelector("#app");
 const toast = document.querySelector("#toast");
 const STORE_KEY = "puppy-study-prototype-v2";
+const DEFAULT_STUDY_DAY_MINUTES = 1440;
 const translations = {
   en: {
     intro: "Meet your puppy. Each study day, one of two foods and one of two activities will be shown.",
@@ -16,9 +17,9 @@ const translations = {
   }
 };
 const authCopy = {
-  en: { emulator: "Local test mode: submissions are stored only in the emulator on this computer.", recover: "I already have a recovery code", codeTitle: "Save your recovery code", codeText: "Keep this private code somewhere safe. It is the only way to restore this participant on another device.", codeAction: "Copy code", codeSaved: "I saved my code", codeMissing: "Your recovery code is not available in this browser. Create a new one.", makeCode: "Create a new code", recoverTitle: "Restore your participant", codeLabel: "Recovery code", restore: "Restore my puppy", localOnly: "Firebase is not configured. This run is saved only on this device and is not sent to the study database.", saveFailed: "We could not save today’s response. Please stay on this page and try again.", retrySave: "Retry saving today’s response", saved: "Response saved securely." },
-  zh: { emulator: "本地模拟模式：提交记录只保存在这台电脑的模拟器中。", recover: "我有参与者恢复码", codeTitle: "请保存恢复码", codeText: "请妥善保管此私人代码。换设备恢复同一参与者身份时需要使用它。", codeAction: "复制恢复码", codeSaved: "我已保存恢复码", codeMissing: "此浏览器中没有恢复码，请生成一个新码。", makeCode: "生成新恢复码", recoverTitle: "恢复已有参与者", codeLabel: "参与者恢复码", restore: "恢复我的小狗", localOnly: "Firebase 尚未配置。本次记录仅保存在此设备，不会发送到研究数据库。", saveFailed: "今天的回答暂未保存。请留在此页面并重试。", retrySave: "重试保存今天的回答", saved: "回答已安全保存。" },
-  es: { emulator: "Modo de prueba local: las respuestas solo se guardan en el emulador de este equipo.", recover: "Ya tengo un código de recuperación", codeTitle: "Guarda tu código de recuperación", codeText: "Guarda este código privado en un lugar seguro. Lo necesitarás para restaurar este participante en otro dispositivo.", codeAction: "Copiar código", codeSaved: "He guardado mi código", codeMissing: "Este navegador no tiene el código. Crea uno nuevo.", makeCode: "Crear código nuevo", recoverTitle: "Restaurar participante", codeLabel: "Código de recuperación", restore: "Restaurar mi cachorro", localOnly: "Firebase no está configurado. Esta sesión solo se guarda en este dispositivo y no se envía a la base de datos.", saveFailed: "No pudimos guardar la respuesta de hoy. Quédate en esta página e inténtalo de nuevo.", retrySave: "Reintentar guardar la respuesta de hoy", saved: "Respuesta guardada de forma segura." }
+  en: { emulator: "Local test mode: submissions are stored only in the emulator on this computer.", recover: "I already have a recovery code", codeTitle: "Save your recovery code", codeText: "Keep this private code somewhere safe. It is the only way to restore this participant on another device.", codeAction: "Copy code", codeSaved: "I saved my code", codeMissing: "Your recovery code is not available in this browser. Create a new one.", makeCode: "Create a new code", recoverTitle: "Restore your participant", codeLabel: "Recovery code", restore: "Restore my puppy", localOnly: "Firebase is not configured. This run is saved only on this device and is not sent to the study database.", saveFailed: "We could not save today’s response. Please stay on this page and try again.", saved: "Response saved securely.", customCodeLabel: "Choose your own recovery code", customCodeHint: "Use 8–80 characters so it is easy for you to remember.", customCodeAction: "Save my recovery code", customCodeSaved: "Recovery code updated.", customCodeInvalid: "Enter a recovery code between 8 and 80 characters.", manageCode: "Recovery code" },
+  zh: { emulator: "本地模拟模式：提交记录只保存在这台电脑的模拟器中。", recover: "我有参与者恢复码", codeTitle: "请保存恢复码", codeText: "请妥善保管此私人代码。换设备恢复同一参与者身份时需要使用它。", codeAction: "复制恢复码", codeSaved: "我已保存恢复码", codeMissing: "此浏览器中没有恢复码，请生成一个新码。", makeCode: "生成新恢复码", recoverTitle: "恢复已有参与者", codeLabel: "参与者恢复码", restore: "恢复我的小狗", localOnly: "Firebase 尚未配置。本次记录仅保存在此设备，不会发送到研究数据库。", saveFailed: "今天的回答暂未保存。请留在此页面并重试。", saved: "回答已安全保存。", customCodeLabel: "设置你自己的恢复码", customCodeHint: "请输入 8–80 个字符，选一个你自己记得住的。", customCodeAction: "保存我的恢复码", customCodeSaved: "恢复码已更新。", customCodeInvalid: "请输入 8–80 个字符的恢复码。", manageCode: "恢复码" },
+  es: { emulator: "Modo de prueba local: las respuestas solo se guardan en el emulador de este equipo.", recover: "Ya tengo un código de recuperación", codeTitle: "Guarda tu código de recuperación", codeText: "Guarda este código privado en un lugar seguro. Lo necesitarás para restaurar este participante en otro dispositivo.", codeAction: "Copiar código", codeSaved: "He guardado mi código", codeMissing: "Este navegador no tiene el código. Crea uno nuevo.", makeCode: "Crear código nuevo", recoverTitle: "Restaurar participante", codeLabel: "Código de recuperación", restore: "Restaurar mi cachorro", localOnly: "Firebase no está configurado. Esta sesión solo se guarda en este dispositivo y no se envía a la base de datos.", saveFailed: "No pudimos guardar la respuesta de hoy. Quédate en esta página e inténtalo de nuevo.", saved: "Respuesta guardada de forma segura.", customCodeLabel: "Elige tu propio código de recuperación", customCodeHint: "Usa entre 8 y 80 caracteres para que te resulte fácil recordarlo.", customCodeAction: "Guardar mi código", customCodeSaved: "Código de recuperación actualizado.", customCodeInvalid: "Introduce un código de recuperación de 8 a 80 caracteres.", manageCode: "Código de recuperación" }
 };
 const neutralCopy = {
   en: {
@@ -108,10 +109,11 @@ let pendingRecoveryCode = null;
 let firebaseDataPromise = null;
 function isPostgresTrial() {
   const host = window.location.hostname;
-  return host !== "" && !host.endsWith("github.io") && new URLSearchParams(window.location.search).get("backend") === "postgres";
+  const localNetworkHost = host === "localhost" || host === "127.0.0.1" || /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
+  return localNetworkHost && new URLSearchParams(window.location.search).get("backend") === "postgres";
 }
 function hasFirebaseConfig() { if (isPostgresTrial()) return false; const c = window.PUPPY_FIREBASE_CONFIG; return Boolean(c?.emulatorMode || (c?.apiKey && c?.authDomain && c?.projectId && c?.appId && c?.dataCollectionEnabled === true)); }
-function dataNotice() { const c = window.PUPPY_FIREBASE_CONFIG; if (isPostgresTrial()) return location.protocol === "https:" && !["localhost", "127.0.0.1"].includes(location.hostname) ? (language === "zh" ? "线上试运行：回答将发送到受保护的研究数据库。" : "Staging: responses are sent to the protected study database.") : (language === "zh" ? "本地试验：记录保存到此电脑的 PostgreSQL 数据库。" : language === "es" ? "Prueba local: las respuestas se guardan en PostgreSQL en este equipo." : "Local trial: responses save to PostgreSQL on this computer."); if (c?.emulatorMode) return ac("emulator"); if (!hasFirebaseConfig()) return ac("localOnly"); return ""; }
+function dataNotice() { const c = window.PUPPY_FIREBASE_CONFIG; if (isPostgresTrial()) return language === "zh" ? "本地试验：记录保存到此电脑的 PostgreSQL 数据库。" : language === "es" ? "Prueba local: las respuestas se guardan en PostgreSQL en este equipo." : "Local trial: responses save to PostgreSQL on this computer."; if (c?.emulatorMode) return ac("emulator"); if (!hasFirebaseConfig()) return ac("localOnly"); return ""; }
 async function postgresRequest(path, body) {
   const headers = { "Content-Type": "application/json" };
   if (state?.participantToken) headers.Authorization = `Bearer ${state.participantToken}`;
@@ -130,8 +132,72 @@ let playDone = false;
 
 function loadState() { try { return JSON.parse(localStorage.getItem(STORE_KEY) || "null"); } catch { return null; } }
 function todayKey() { return new Date().toLocaleDateString("en-CA"); }
-function studyDay() { if (!state?.enrolledDate) return 1; return Math.max(1, Math.floor((new Date(todayKey()) - new Date(state.enrolledDate)) / 86400000) + 1); }
+function studyDayLengthMinutes() {
+  const minutes = Number.parseInt(String(state?.studyDayMinutes ?? ""), 10);
+  return Number.isInteger(minutes) && minutes > 0 ? minutes : DEFAULT_STUDY_DAY_MINUTES;
+}
+function isAcceleratedSchedule() { return state?.postgresParticipant && studyDayLengthMinutes() < DEFAULT_STUDY_DAY_MINUTES; }
+function rawStudyDay() {
+  if (isAcceleratedSchedule() && state?.enrolledAt) {
+    const enrolledAt = new Date(state.enrolledAt);
+    if (!Number.isNaN(enrolledAt.getTime())) return Math.max(1, Math.floor((Date.now() - enrolledAt.getTime()) / (studyDayLengthMinutes() * 60000)) + 1);
+  }
+  if (!state?.enrolledDate) return 1;
+  return Math.max(1, Math.floor((new Date(todayKey()) - new Date(state.enrolledDate)) / 86400000) + 1);
+}
+function studyDay() { return Math.min(24, rawStudyDay()); }
+function studyPeriodKey() {
+  if (isAcceleratedSchedule() && state?.enrolledAt) return `block-${rawStudyDay()}`;
+  return `date-${todayKey()}`;
+}
+function studyWindowClosed() { return rawStudyDay() > 24; }
+function nextVisitText(kind, vars = {}) {
+  if (!isAcceleratedSchedule()) {
+    if (kind === "complete") return t("completeText", vars);
+    if (kind === "lockedTitle") return t("todayDone", vars);
+    if (kind === "lockedBody") return t("idleText", vars);
+    if (kind === "done") return t("done");
+    return "";
+  }
+  const minutes = studyDayLengthMinutes();
+  if (language === "zh") {
+    if (kind === "complete") return `谢谢你陪伴${vars.name}。快速测试模式已开启：每 ${minutes} 分钟解锁一个新的研究日。`;
+    if (kind === "lockedTitle") return `你已经完成了 ${vars.name} 当前这个测试时段的互动！`;
+    if (kind === "lockedBody") return `${vars.name} 正在休息。快速测试模式下，每 ${minutes} 分钟会解锁下一天。`;
+    if (kind === "done") return "等待下一时段";
+  }
+  if (language === "es") {
+    if (kind === "complete") return `Gracias por pasar tiempo con ${vars.name}. El modo de prueba rápida está activo: un nuevo día del estudio se desbloquea cada ${minutes} minutos.`;
+    if (kind === "lockedTitle") return `Ya completaste el bloque actual de prueba con ${vars.name}.`;
+    if (kind === "lockedBody") return `${vars.name} está descansando. En el modo rápido, el siguiente día se desbloquea cada ${minutes} minutos.`;
+    if (kind === "done") return "Esperar el siguiente bloque";
+  }
+  if (kind === "complete") return `Thanks for spending time with ${vars.name}. Quick test mode is on: a new study day unlocks every ${minutes} minutes.`;
+  if (kind === "lockedTitle") return `You’ve already finished ${vars.name}’s current test block.`;
+  if (kind === "lockedBody") return `${vars.name} is resting. In quick test mode, the next study day unlocks every ${minutes} minutes.`;
+  if (kind === "done") return "Wait for next block";
+  return "";
+}
+function scheduleNotice() {
+  if (!isAcceleratedSchedule()) return "";
+  const minutes = studyDayLengthMinutes();
+  if (language === "zh") return `快速测试模式：每 ${minutes} 分钟算作一个研究日。`;
+  if (language === "es") return `Modo de prueba rápida: cada ${minutes} minutos cuenta como un día del estudio.`;
+  return `Quick test mode: each ${minutes}-minute block counts as one study day.`;
+}
+function studyWindowClosedMessage() {
+  if (language === "zh") return "这个本地测试参与者已经超过第 24 个研究日。请点击“换一只小狗”开始新的短期测试。";
+  if (language === "es") return "Este participante local ya superó el día 24 del estudio. Usa otro cachorro para iniciar una prueba nueva.";
+  return "This local test participant is already past study day 24. Use another puppy to start a fresh short test.";
+}
 function saveState() { if (state) localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+function clearParticipantState() {
+  state = null;
+  pendingRecoveryCode = null;
+  feedDone = false;
+  playDone = false;
+  localStorage.removeItem(STORE_KEY);
+}
 if (state && state.environmentIntroSeen === undefined) { state.environmentIntroSeen = true; saveState(); }
 function t(key, vars = {}) { return (neutralCopy[language]?.[key] || translations[language][key] || translations.en[key] || key).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? ""); }
 function escapeHtml(value) { return String(value).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]); }
@@ -151,7 +217,7 @@ function puppy(name, idle = false, score = state?.currentTrial?.e ?? state?.actu
 function languagePicker() { return `<label class="language-picker"><span>${t("language")}</span><select id="language-select" aria-label="${t("language")}"><option value="en" ${language === "en" ? "selected" : ""}>English</option><option value="zh" ${language === "zh" ? "selected" : ""}>中文</option><option value="es" ${language === "es" ? "selected" : ""}>Español</option></select></label>`; }
 function bindLanguage() { document.querySelector("#language-select")?.addEventListener("change", e => { language = e.target.value; if (state) { state.language = language; saveState(); } render(); }); }
 function render() {
-  if (state?.completedToday && state.completedDate !== todayKey()) { state.completedToday = false; state.screen = "home"; feedDone = false; playDone = false; state.actualMood = null; state.prediction = null; state.predictedEScore = null; state.currentTrial = null; state.interactions = { fed: false, played: false }; state.requestId = null; saveState(); }
+  if (state?.completedToday && state.completedDate !== studyPeriodKey()) { state.completedToday = false; state.screen = "home"; feedDone = false; playDone = false; state.actualMood = null; state.prediction = null; state.predictedEScore = null; state.currentTrial = null; state.interactions = { fed: false, played: false }; state.requestId = null; saveState(); }
   if (state && !state.environmentIntroSeen && state.screen === "home") state.screen = "environment-intro";
   document.documentElement.lang = language === "zh" ? "zh-CN" : language === "es" ? "es" : "en";
   if (!state) return renderOnboarding();
@@ -182,7 +248,7 @@ function renderOnboarding() {
     try {
       if (isPostgresTrial()) {
         const profile = await postgresRequest("participants", { puppyName: name });
-        state = { participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: profile.recoveryCode ? "recovery-setup" : "environment-intro", environmentIntroSeen: false, completedToday: false, enrolledDate: profile.enrolledDate || todayKey(), interactions: { fed: false, played: false }, localOnly: true };
+        state = { participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: profile.recoveryCode ? "recovery-setup" : "environment-intro", environmentIntroSeen: false, completedToday: false, completedStudyDay: null, enrolledDate: profile.enrolledDate || todayKey(), enrolledAt: profile.enrolledAt || null, studyDayMinutes: profile.studyDayMinutes || DEFAULT_STUDY_DAY_MINUTES, interactions: { fed: false, played: false }, localOnly: true };
         pendingRecoveryCode = profile.recoveryCode;
       } else if (hasFirebaseConfig()) {
         const profile = await (await firebaseData()).enrollParticipant(name);
@@ -211,12 +277,18 @@ function renderEnvironmentIntro() {
   document.querySelector("#environment-continue").addEventListener("click", () => { state.environmentIntroSeen = true; state.screen = "home"; saveState(); render(); });
 }
 function renderHome() {
+  const closed = studyWindowClosed();
+  const actionMarkup = closed ? `<div class="locked-message"><h1>${studyWindowClosedMessage()}</h1></div><button id="new-participant" class="button button-primary button-wide">${t("nameEdit")}</button>` : `<button id="start-visit" class="button button-primary button-wide">${t("beginDay")}</button>`;
   app.innerHTML = `<header class="topbar"><span class="brand">🐾 ${t("title")}</span>${languagePicker()}</header><section class="home-screen">
     <div class="hero-copy"><p class="eyebrow">${t("day")} ${studyDay()}</p><h1>${t("greeting")}, <span>${escapeHtml(state.puppyName)}</span>!</h1><p>${t("tagline")}</p></div>
-    ${puppy(state.puppyName)}<button id="start-visit" class="button button-primary button-wide">${t("beginDay")}</button><p class="prototype-note">${t("prototype")} ${dataNotice()}</p></section>`;
-  bindLanguage(); document.querySelector("#start-visit").addEventListener("click", () => { state.screen = "activities"; saveState(); render(); });
+    ${puppy(state.puppyName)}${actionMarkup}${isPostgresTrial() ? `<button id="manage-recovery-code" class="text-button">${ac("manageCode")}</button>` : ``}<p class="prototype-note">${t("prototype")} ${dataNotice()} ${scheduleNotice()}</p></section>`;
+  bindLanguage();
+  document.querySelector("#start-visit")?.addEventListener("click", () => { state.screen = "activities"; saveState(); render(); });
+  document.querySelector("#new-participant")?.addEventListener("click", () => { clearParticipantState(); render(); });
+  document.querySelector("#manage-recovery-code")?.addEventListener("click", () => { state.screen = "recovery-setup"; state.customRecoveryCodeDraft ||= pendingRecoveryCode || ""; saveState(); render(); });
 }
 async function loadTrialForDay() {
+  if (studyWindowClosed()) throw new Error(studyWindowClosedMessage());
   const day = studyDay();
   if (isPostgresTrial() && state.postgresParticipant) {
     const response = await fetch(`/api/participants/${encodeURIComponent(state.participantId)}/trials/${day}`, { headers: { Authorization: `Bearer ${state.participantToken}` } });
@@ -224,7 +296,6 @@ async function loadTrialForDay() {
     if (!response.ok) throw new Error(result.error || ac("saveFailed"));
     state.currentTrial = result;
   } else {
-    // Demonstration values only. Research order assignment is supplied by the local API.
     const previewScores = [-1, 1, 3, 5, 6, 8, 9, 10];
     state.currentTrial = { day, t: day % 2, a: day <= 12 ? 1 : 0, e: previewScores[(day - 1) % previewScores.length] };
   }
@@ -232,21 +303,10 @@ async function loadTrialForDay() {
   saveState();
 }
 function foodName(trial = state.currentTrial) {
-  const mapped = language === "zh" ? (trial?.t === 1 ? "胡萝卜" : "沙丁鱼") : language === "es" ? (trial?.t === 1 ? "zanahorias" : "sardinas") : (trial?.t === 1 ? "carrots" : "sardines");
-  const uploaded = trial?.tLabel;
-  if (!uploaded) return mapped;
-  if (["胡萝卜", "沙丁鱼"].includes(uploaded)) return mapped;
-  if (uploaded.toLowerCase() === "carrot" || uploaded.toLowerCase() === "sardine") return language === "zh" ? mapped : language === "es" ? mapped : `${uploaded}${uploaded === "carrot" ? "s" : "s"}`;
-  return uploaded;
+  return trial?.tLabel || (trial?.t === 1 ? (language === "zh" ? "胡萝卜" : language === "es" ? "zanahorias" : "carrots") : (language === "zh" ? "沙丁鱼" : language === "es" ? "sardinas" : "sardines"));
 }
 function activityName(trial = state.currentTrial) {
-  const mapped = language === "zh" ? (trial?.a === 1 ? "拔河" : "捡球") : language === "es" ? (trial?.a === 1 ? "tira y afloja" : "buscar") : (trial?.a === 1 ? "tug-of-war" : "fetch");
-  const uploaded = trial?.aLabel;
-  if (!uploaded) return mapped;
-  if (["拔河", "捡球"].includes(uploaded)) return mapped;
-  const value = uploaded.toLowerCase();
-  if (["tug-of-war", "tug of war", "fetch", "toss and catch"].includes(value)) return mapped;
-  return uploaded;
+  return trial?.aLabel || (trial?.a === 1 ? (language === "zh" ? "拔河" : language === "es" ? "tira y afloja" : "tug-of-war") : (language === "zh" ? "捡飞盘" : language === "es" ? "buscar" : "fetch"));
 }
 function renderActivities() {
   feedDone = Boolean(state.interactions?.fed); playDone = Boolean(state.interactions?.played);
@@ -256,22 +316,12 @@ function renderActivities() {
   const foodIcon = trial.t === 1 ? "🥕" : "🐟";
   const activityIsTug = trial.a === 1;
   const activityIcon = activityIsTug ? "🪢" : "🥏";
-  app.innerHTML = `<header class="topbar"><span class="brand">🐾 ${t("title")}</span><span class="step-pill">${t("day")} ${studyDay()} · 1 / 3</span></header><section class="activity-screen">
-    <div class="activity-heading"><p class="eyebrow">${t("day")} ${studyDay()} · T + A</p><h1>${escapeHtml(state.puppyName)}’s day</h1><p>${t("treatText")} ${t("playText")}</p></div>
-    <div id="phaser-scene-mount" class="phaser-scene-mount" data-phaser-pending="true" data-phaser-scene="daily-yard" aria-label="Puppy interaction scene">
-      <div class="environment-scene daily-scene"><span class="scene-prop prop-food-bag" aria-hidden="true">🛍️</span><span class="scene-prop prop-bowl" aria-hidden="true">🥣</span><span class="scene-prop prop-rope" aria-hidden="true">🪢</span><span class="scene-prop prop-disc" aria-hidden="true">🥏</span><span class="scene-prop prop-bed" aria-hidden="true">🛏️</span>${puppy(state.puppyName, false, trial.e)}</div>
-    </div>
-    <article class="activity-card interaction-card"><div><p class="eyebrow">T · ${escapeHtml(food)}</p><h2>${t("treatTitle")}</h2><p>${t("treatText")}</p></div>
-      <div class="food-playground"><span class="interaction-arrow" aria-hidden="true">👇</span><button id="food-token" class="drag-token food-token" type="button" aria-label="${t("foodArrow")}" ${feedDone ? "disabled" : ""}>${foodIcon}</button><div id="food-bowl-target" class="food-bowl-target" role="img" aria-label="Dog food bowl">🥣</div></div>
-      <div class="interaction-meter"><span id="food-fill"></span></div><small id="food-status" class="interaction-status" aria-live="polite">${feedDone ? t("fed") : t("foodArrow")}</small></article>
-    <article class="activity-card interaction-card"><div><p class="eyebrow">A · ${escapeHtml(activity)}</p><h2>${t("playTitle")}</h2><p>${t("playText")}</p></div>
-      <div class="activity-playground ${activityIsTug ? "is-tug" : "is-fetch"}"><span class="activity-dog-target" id="activity-dog-target" aria-hidden="true">🐶</span><span class="rope-line" aria-hidden="true">〰〰〰〰〰</span><button id="activity-token" class="drag-token activity-token" type="button" aria-label="${t("activityArrow")}" ${playDone ? "disabled" : ""}>${playDone ? "✓" : activityIcon}</button><span class="interaction-arrow activity-arrow" aria-hidden="true">👆</span></div>
-      <div class="interaction-meter"><span id="activity-fill"></span></div><small id="activity-status" class="interaction-status" aria-live="polite">${playDone ? t("played") : activityIsTug ? t("tugInstruction") : t("fetchTarget")}</small></article>
-    <button id="activities-next" class="button button-primary button-wide" ${feedDone && playDone ? "" : "disabled"}>${t("continue")}</button></section>`;
-  const foodToken = document.querySelector("#food-token");
-  foodToken.addEventListener("pointerdown", startFoodDrag); foodToken.addEventListener("pointermove", moveFoodDrag); foodToken.addEventListener("pointerup", finishFoodDrag); foodToken.addEventListener("pointercancel", resetFoodDrag);
-  const activityToken = document.querySelector("#activity-token");
-  activityToken.addEventListener("pointerdown", startActivityDrag); activityToken.addEventListener("pointermove", moveActivityDrag); activityToken.addEventListener("pointerup", finishActivityDrag); activityToken.addEventListener("pointercancel", cancelActivityDrag);
+  app.innerHTML = `<header class="topbar"><span class="brand">🐾 ${t("title")}</span><span class="step-pill">${t("day")} ${studyDay()} · 1 / 3</span></header><section class="activity-screen"><div class="activity-heading"><p class="eyebrow">${t("day")} ${studyDay()} · T + A</p><h1>${escapeHtml(state.puppyName)}’s day</h1><p>${t("treatText")} ${t("playText")}</p></div><div id="phaser-scene-mount" class="phaser-scene-mount" data-phaser-pending="true" data-phaser-scene="daily-yard" aria-label="Puppy interaction scene"><div class="environment-scene daily-scene"><span class="scene-prop prop-food-bag" aria-hidden="true">🛍️</span><span class="scene-prop prop-bowl" aria-hidden="true">🥣</span><span class="scene-prop prop-rope" aria-hidden="true">🪢</span><span class="scene-prop prop-disc" aria-hidden="true">🥏</span><span class="scene-prop prop-bed" aria-hidden="true">🛏️</span>${puppy(state.puppyName, false, trial.e)}</div></div><article class="activity-card interaction-card"><div><p class="eyebrow">T · ${escapeHtml(food)}</p><h2>${t("treatTitle")}</h2><p>${t("treatText")}</p></div><div class="food-playground"><span class="interaction-arrow" aria-hidden="true">👇</span><button id="food-token" class="drag-token food-token" type="button" aria-label="${t("foodArrow")}" ${feedDone ? "disabled" : ""}>${foodIcon}</button><div id="food-bowl-target" class="food-bowl-target" role="img" aria-label="Dog food bowl">🥣</div></div><div class="interaction-meter"><span id="food-fill"></span></div><small id="food-status" class="interaction-status" aria-live="polite">${feedDone ? t("fed") : t("foodArrow")}</small></article><article class="activity-card interaction-card"><div><p class="eyebrow">A · ${escapeHtml(activity)}</p><h2>${t("playTitle")}</h2><p>${t("playText")}</p></div><div class="activity-playground ${activityIsTug ? "is-tug" : "is-fetch"}"><span class="activity-dog-target" id="activity-dog-target" aria-hidden="true">🐶</span><span class="rope-line" aria-hidden="true">〰〰〰〰〰</span><button id="activity-token" class="drag-token activity-token" type="button" aria-label="${t("activityArrow")}" ${playDone ? "disabled" : ""}>${playDone ? "✓" : activityIcon}</button><span class="interaction-arrow activity-arrow" aria-hidden="true">👆</span></div><div class="interaction-meter"><span id="activity-fill"></span></div><small id="activity-status" class="interaction-status" aria-live="polite">${playDone ? t("played") : activityIsTug ? t("tugInstruction") : t("fetchTarget")}</small></article><button id="activities-next" class="button button-primary button-wide" ${feedDone && playDone ? "" : "disabled"}>${t("continue")}</button></section>`;
+  const foodToken = document.querySelector("#food-token"); const foodTarget = document.querySelector("#food-bowl-target");
+  foodToken.addEventListener("pointerdown", startFoodDrag); foodToken.addEventListener("pointermove", moveFoodDrag); foodToken.addEventListener("pointerup", finishFoodDrag); foodToken.addEventListener("pointercancel", resetFoodDrag); foodToken.addEventListener("lostpointercapture", resetFoodDrag); foodToken.addEventListener("click", () => triggerFoodInteraction()); foodTarget?.addEventListener("click", () => triggerFoodInteraction());
+  const activityToken = document.querySelector("#activity-token"); const activityTarget = document.querySelector("#activity-dog-target");
+  activityToken.addEventListener("pointerdown", startActivityDrag); activityToken.addEventListener("pointermove", moveActivityDrag); activityToken.addEventListener("pointerup", finishActivityDrag); activityToken.addEventListener("pointercancel", cancelActivityDrag); activityToken.addEventListener("lostpointercapture", cancelActivityDrag);
+  if (activityIsTug) activityToken.addEventListener("pointerleave", cancelActivityDrag); else { activityToken.addEventListener("click", () => triggerActivityInteraction()); activityTarget?.addEventListener("click", () => triggerActivityInteraction()); }
   document.querySelector("#activities-next").addEventListener("click", () => { if (feedDone && playDone) { state.screen = "question"; saveState(); render(); } });
   window.dispatchEvent(new CustomEvent("puppy:phaser-mount", { detail: { mount: document.querySelector("#phaser-scene-mount"), trial, onFoodComplete: () => completeInteraction("fed", 8000), onActivityComplete: () => completeInteraction("played", 8000) } }));
 }
@@ -280,212 +330,45 @@ let interactionStartedAt = 0;
 let interactionKind = null;
 let dragStart = null;
 let dragDistance = 0;
-let activityLastPoint = null;
-function updateInteractionProgress(fillId, statusId, startedAt, frameId) {
-  const elapsed = Math.min(INTERACTION_MS, performance.now() - startedAt);
-  const fill = document.getElementById(fillId);
-  if (fill) fill.style.width = `${elapsed / INTERACTION_MS * 100}%`;
-  const statusNode = document.getElementById(statusId);
-  if (statusNode) statusNode.textContent = t("secondsRemaining", { n: Math.ceil((INTERACTION_MS - elapsed) / 1000) });
-  if (elapsed >= INTERACTION_MS) {
-    if (frameId === "tug-progress") {
-      if (dragDistance >= 24) completeInteraction("played", INTERACTION_MS);
-      else { interactionKind = null; if (statusNode) statusNode.textContent = t("tugInstruction"); }
-    } else completeInteraction(frameId, INTERACTION_MS);
-    return;
-  }
-  timer = setTimeout(() => updateInteractionProgress(fillId, statusId, startedAt, frameId), 100);
-}
-function startFoodDrag(event) {
-  if (feedDone || interactionKind) return;
-  event.preventDefault();
-  dragStart = { x: event.clientX, y: event.clientY, left: event.currentTarget.offsetLeft, top: event.currentTarget.offsetTop };
-  event.currentTarget.setPointerCapture(event.pointerId);
-  event.currentTarget.classList.add("is-dragging");
-  document.querySelector(".food-playground")?.classList.add("is-food-dragging");
-}
-function moveFoodDrag(event) {
-  if (!dragStart) return;
-  event.currentTarget.style.transform = `translate(${event.clientX - dragStart.x}px, ${event.clientY - dragStart.y}px)`;
-}
-function finishFoodDrag(event) {
-  if (!dragStart) return;
-  const bowl = document.querySelector("#food-bowl-target");
-  const bounds = bowl?.getBoundingClientRect();
-  const hitPadding = 22;
-  const droppedInBowl = bounds && event.clientX >= bounds.left - hitPadding && event.clientX <= bounds.right + hitPadding && event.clientY >= bounds.top - hitPadding && event.clientY <= bounds.bottom + hitPadding;
-  dragStart = null;
-  event.currentTarget.classList.remove("is-dragging");
-  document.querySelector(".food-playground")?.classList.remove("is-food-dragging");
-  if (!droppedInBowl) { event.currentTarget.style.transform = ""; return; }
-  event.currentTarget.style.transform = "";
-  event.currentTarget.classList.add("food-in-bowl");
-  interactionKind = "fed";
-  interactionStartedAt = performance.now();
-  updateInteractionProgress("food-fill", "food-status", interactionStartedAt, "fed");
-}
-function resetFoodDrag(event) { dragStart = null; event.currentTarget.style.transform = ""; event.currentTarget.classList.remove("is-dragging"); document.querySelector(".food-playground")?.classList.remove("is-food-dragging"); }
-function startActivityDrag(event) {
-  if (playDone || interactionKind) return;
-  event.preventDefault();
-  dragStart = { x: event.clientX, y: event.clientY, lastX: event.clientX };
-  activityLastPoint = { x: event.clientX, y: event.clientY };
-  dragDistance = 0;
-  interactionStartedAt = performance.now();
-  interactionKind = state.currentTrial.a === 1 ? "tug" : "fetch-drag";
-  event.currentTarget.setPointerCapture(event.pointerId);
-  event.currentTarget.classList.add("is-dragging");
-  if (interactionKind === "tug") updateInteractionProgress("activity-fill", "activity-status", interactionStartedAt, "tug-progress");
-}
-function moveActivityDrag(event) {
-  if (!dragStart) return;
-  dragDistance += Math.abs(event.clientX - dragStart.lastX);
-  dragStart.lastX = event.clientX;
-  activityLastPoint = { x: event.clientX, y: event.clientY };
-  const delta = event.clientX - dragStart.x;
-  // Let the disc travel the full distance to the puppy. The previous ±90 px
-  // clamp made the visible target unreachable on wider screens and some phones.
-  event.currentTarget.style.transform = `translate(${delta}px, ${event.clientY - dragStart.y}px)`;
-  if (interactionKind === "tug") document.querySelector(".activity-playground")?.classList.toggle("rope-pulling", Math.abs(delta) > 12);
-}
-function finishActivityDrag(event) {
-  if (!dragStart) return;
-  if (playDone) { dragStart = null; event.currentTarget.style.transform = ""; event.currentTarget.classList.remove("is-dragging"); return; }
-  const wasTug = interactionKind === "tug";
-  // Pointer capture can make elementFromPoint unreliable on some mobile browsers.
-  // Use the actual dog and play-area geometry, with a generous drop zone around both.
-  const dog = document.querySelector("#activity-dog-target")?.getBoundingClientRect();
-  const playground = document.querySelector(".activity-playground")?.getBoundingClientRect();
-  const x = event.clientX ?? activityLastPoint?.x ?? dragStart.x;
-  const y = event.clientY ?? activityLastPoint?.y ?? dragStart.y;
-  const inDogZone = dog && x >= dog.left - 44 && x <= dog.right + 44 && y >= dog.top - 44 && y <= dog.bottom + 44;
-  // The fetch scene visually asks the participant to throw toward the dog. Accept
-  // the right-hand half of the play area too, so a small phone target is not frustrating.
-  const inDogSideOfPlayground = playground && x >= playground.left + playground.width * 0.52 && x <= playground.right + 24 && y >= playground.top - 20 && y <= playground.bottom + 20;
-  const reachedDog = Boolean(inDogZone || inDogSideOfPlayground);
-  dragStart = null;
-  event.currentTarget.classList.remove("is-dragging");
-  if (wasTug) {
-    if (playDone) return;
-    event.currentTarget.style.transform = "";
-    document.querySelector(".activity-playground")?.classList.remove("rope-pulling");
-    // A short pull is enough to show engagement; keep the 8-second interaction
-    // timer running after release instead of cancelling it on pointerup.
-    if (dragDistance >= 24) {
-      activityLastPoint = null;
-      return;
-    }
-    clearTimeout(timer);
-    interactionKind = null;
-    document.querySelector("#activity-fill")?.style.setProperty("width", "0%");
-    document.querySelector("#activity-status").textContent = t("tugInstruction");
-    activityLastPoint = null;
-    return;
-  }
-  if (reachedDog && dragDistance >= 18) {
-    event.currentTarget.classList.add("fetching-disc");
-    interactionKind = "played";
-    interactionStartedAt = performance.now();
-    updateInteractionProgress("activity-fill", "activity-status", interactionStartedAt, "played");
-  } else { interactionKind = null; event.currentTarget.style.transform = ""; }
-  activityLastPoint = null;
-}
-function cancelActivityDrag(event) {
-  if (interactionKind === "tug") clearTimeout(timer);
-  interactionKind = null; dragStart = null; event.currentTarget.style.transform = ""; event.currentTarget.classList.remove("is-dragging");
-  activityLastPoint = null;
-  document.querySelector("#activity-fill")?.style.setProperty("width", "0%");
-  const statusNode = document.querySelector("#activity-status"); if (statusNode) statusNode.textContent = state.currentTrial.a === 1 ? t("tugInstruction") : t("fetchTarget");
-}
-function completeInteraction(kind, durationMs) {
-  clearTimeout(timer);
-  interactionKind = null;
-  if (kind === "fed") {
-    feedDone = true;
-    state.interactions = { ...(state.interactions || {}), fed: true, foodDurationMs: durationMs };
-    const token = document.querySelector("#food-token"); if (token) token.disabled = true;
-    const statusNode = document.querySelector("#food-status"); if (statusNode) statusNode.textContent = t("fed");
-  }
-  if (kind === "played") {
-    playDone = true;
-    state.interactions = { ...(state.interactions || {}), played: true, activityDurationMs: durationMs };
-    const token = document.querySelector("#activity-token"); if (token) { token.disabled = true; token.textContent = "✓"; token.style.transform = ""; }
-    const statusNode = document.querySelector("#activity-status"); if (statusNode) statusNode.textContent = t("played");
-    document.querySelector(".activity-playground")?.classList.add("interaction-finished");
-  }
-  saveState(); updateNext();
-}
-window.PuppyPhaserBridge = {
-  mount(id, setup) {
-    const mount = document.getElementById(id);
-    if (!mount) return null;
-    mount.dataset.phaserPending = String(!window.Phaser);
-    if (window.Phaser && typeof setup === "function") return setup(mount);
-    return null;
-  },
-  complete: completeInteraction
-};
+function updateInteractionProgress(fillId, statusId, startedAt, frameId) { const elapsed = Math.min(INTERACTION_MS, performance.now() - startedAt); const fill = document.getElementById(fillId); if (fill) fill.style.width = `${elapsed / INTERACTION_MS * 100}%`; const statusNode = document.getElementById(statusId); if (statusNode) statusNode.textContent = t("secondsRemaining", { n: Math.ceil((INTERACTION_MS - elapsed) / 1000) }); if (elapsed >= INTERACTION_MS) { completeInteraction(frameId, INTERACTION_MS); return; } timer = setTimeout(() => updateInteractionProgress(fillId, statusId, startedAt, frameId), 100); }
+function startTimedInteraction(kind, fillId, statusId) { clearTimeout(timer); interactionKind = kind; interactionStartedAt = performance.now(); updateInteractionProgress(fillId, statusId, interactionStartedAt, kind); }
+function triggerFoodInteraction() { if (feedDone || interactionKind) return; const token = document.querySelector("#food-token"); if (!token || token.disabled) return; dragStart = null; token.classList.remove("is-dragging"); token.classList.add("food-in-bowl"); token.style.transform = ""; startTimedInteraction("fed", "food-fill", "food-status"); }
+function triggerActivityInteraction() { if (playDone || interactionKind || state.currentTrial?.a === 1) return; const token = document.querySelector("#activity-token"); if (!token || token.disabled) return; dragStart = null; token.classList.remove("is-dragging"); token.classList.add("fetching-disc"); token.style.transform = ""; startTimedInteraction("played", "activity-fill", "activity-status"); }
+function startFoodDrag(event) { if (feedDone || interactionKind) return; event.preventDefault(); dragStart = { x: event.clientX, y: event.clientY, left: event.currentTarget.offsetLeft, top: event.currentTarget.offsetTop }; event.currentTarget.setPointerCapture?.(event.pointerId); event.currentTarget.classList.add("is-dragging"); }
+function moveFoodDrag(event) { if (!dragStart) return; event.currentTarget.style.transform = `translate(${event.clientX - dragStart.x}px, ${event.clientY - dragStart.y}px)`; }
+function finishFoodDrag(event) { if (!dragStart) return; const target = document.elementFromPoint(event.clientX, event.clientY)?.closest("#food-bowl-target"); dragStart = null; event.currentTarget.classList.remove("is-dragging"); if (!target) { event.currentTarget.style.transform = ""; return; } triggerFoodInteraction(); }
+function resetFoodDrag(event) { dragStart = null; event.currentTarget.style.transform = ""; event.currentTarget.classList.remove("is-dragging"); }
+function startActivityDrag(event) { if (playDone || interactionKind) return; event.preventDefault(); dragStart = { x: event.clientX, y: event.clientY, lastX: event.clientX }; dragDistance = 0; interactionStartedAt = performance.now(); interactionKind = state.currentTrial.a === 1 ? "tug" : "fetch-drag"; event.currentTarget.setPointerCapture?.(event.pointerId); event.currentTarget.classList.add("is-dragging"); if (interactionKind === "tug") updateInteractionProgress("activity-fill", "activity-status", interactionStartedAt, "played"); }
+function moveActivityDrag(event) { if (!dragStart) return; dragDistance += Math.abs(event.clientX - dragStart.lastX); dragStart.lastX = event.clientX; const delta = event.clientX - dragStart.x; event.currentTarget.style.transform = `translate(${Math.max(-90, Math.min(90, delta))}px, ${event.clientY - dragStart.y}px)`; if (interactionKind === "tug") document.querySelector(".activity-playground")?.classList.toggle("rope-pulling", Math.abs(delta) > 12); }
+function finishActivityDrag(event) { if (!dragStart) return; if (playDone) { dragStart = null; event.currentTarget.style.transform = ""; event.currentTarget.classList.remove("is-dragging"); return; } const wasTug = interactionKind === "tug"; const target = document.elementFromPoint(event.clientX, event.clientY)?.closest("#activity-dog-target"); dragStart = null; event.currentTarget.classList.remove("is-dragging"); if (wasTug) { if (playDone) return; clearTimeout(timer); interactionKind = null; event.currentTarget.style.transform = ""; document.querySelector(".activity-playground")?.classList.remove("rope-pulling"); document.querySelector("#activity-fill")?.style.setProperty("width", "0%"); document.querySelector("#activity-status").textContent = t("tugInstruction"); return; } if (target) { triggerActivityInteraction(); } else { interactionKind = null; event.currentTarget.style.transform = ""; } }
+function cancelActivityDrag(event) { if (interactionKind === "tug") clearTimeout(timer); interactionKind = null; dragStart = null; event.currentTarget.style.transform = ""; event.currentTarget.classList.remove("is-dragging"); document.querySelector("#activity-fill")?.style.setProperty("width", "0%"); const statusNode = document.querySelector("#activity-status"); if (statusNode) statusNode.textContent = state.currentTrial.a === 1 ? t("tugInstruction") : t("fetchTarget"); }
+function completeInteraction(kind, durationMs) { clearTimeout(timer); interactionKind = null; if (kind === "fed") { feedDone = true; state.interactions = { ...(state.interactions || {}), fed: true, foodDurationMs: durationMs }; const token = document.querySelector("#food-token"); if (token) token.disabled = true; const statusNode = document.querySelector("#food-status"); if (statusNode) statusNode.textContent = t("fed"); } if (kind === "played") { playDone = true; state.interactions = { ...(state.interactions || {}), played: true, activityDurationMs: durationMs }; const token = document.querySelector("#activity-token"); if (token) { token.disabled = true; token.textContent = "✓"; token.style.transform = ""; } const statusNode = document.querySelector("#activity-status"); if (statusNode) statusNode.textContent = t("played"); document.querySelector(".activity-playground")?.classList.add("interaction-finished"); } saveState(); updateNext(); }
+window.PuppyPhaserBridge = { mount(id, setup) { const mount = document.getElementById(id); if (!mount) return null; mount.dataset.phaserPending = String(!window.Phaser); if (window.Phaser && typeof setup === "function") return setup(mount); return null; }, complete: completeInteraction };
 function updateNext() { const b = document.querySelector("#activities-next"); if (b) b.disabled = !(feedDone && playDone); }
-function renderQuestion() {
-  app.innerHTML = `<header class="topbar"><span class="brand">🐾 ${t("title")}</span><span class="step-pill">${t("day")} ${studyDay()} · 2 / 3</span></header><section class="question-screen"><div class="mini-dog">${puppy(state.puppyName, true, state.currentTrial?.e)}</div><p class="eyebrow">${t("day")} ${studyDay()}</p><h1>${t("moodQuestion")}</h1><p class="question-subtitle">${t("choose")}</p><label class="score-input-card" for="e-prediction"><span>${t("scoreLabel")}</span><select id="e-prediction"><option value="">—</option>${Array.from({ length: 12 }, (_, index) => index - 1).map((score) => `<option value="${score}" ${state.predictedEScore === score ? "selected" : ""}>${score}</option>`).join("")}</select></label><button id="mood-next" class="button button-primary button-wide" ${Number.isInteger(state.predictedEScore) ? "" : "disabled"}>${t("continue")}</button></section>`;
-  document.querySelector("#e-prediction").addEventListener("change", (event) => { state.predictedEScore = event.target.value === "" ? null : Number(event.target.value); saveState(); document.querySelector("#mood-next").disabled = !Number.isInteger(state.predictedEScore); });
-  document.querySelector("#mood-next").addEventListener("click", () => { state.screen = "feedback"; saveState(); render(); });
-}
-function renderFeedback() {
-  const actualScore = state.currentTrial?.e ?? state.actualEScore ?? 5;
-  app.innerHTML = `<header class="topbar"><span class="brand">🐾 ${t("title")}</span><span class="step-pill">${t("day")} ${studyDay()} · 3 / 3</span></header><section class="feedback-screen"><p class="eyebrow">${t("feedback")}</p>${puppy(state.puppyName, false, actualScore)}<div class="mood-reveal score-reveal"><span>${t("behaviorScore", { score: actualScore })}</span></div><button id="feedback-next" class="button button-primary button-wide">${t("continue")}</button></section>`;
-  state.actualEScore = actualScore; saveState(); document.querySelector("#feedback-next").addEventListener("click", () => { state.screen = "imagine"; saveState(); render(); });
-}
-function renderImagine() {
-  app.innerHTML = `<section class="imagine-screen"><div class="imagine-puppy">${puppy(state.puppyName)}</div><p class="eyebrow">${t("imagine")}</p><h1>${t("imagineText", { name: escapeHtml(state.puppyName) })}</h1><div class="countdown" id="countdown">4</div><p>${t("seconds", { n: 4 })}</p></section>`;
-  let n = 4; const iv = setInterval(() => { n--; const el = document.querySelector("#countdown"); if (el) el.textContent = n; if (n <= 0) { clearInterval(iv); state.screen = "complete"; saveState(); render(); } }, 1000);
-}
-function renderComplete() {
-  app.innerHTML = `<section class="complete-screen"><div class="confetti">✦　✧　✦</div>${puppy(state.puppyName, true)}<p class="eyebrow">${t("day")} ${studyDay()}</p><h1>${t("complete")}</h1><p>${t("completeText", { name: escapeHtml(state.puppyName) })}</p><button id="finish-visit" class="button button-primary button-wide">${t("done")}</button></section>`;
-  document.querySelector("#finish-visit").addEventListener("click", async e => {
-    const button = e.currentTarget; button.disabled = true;
-    try {
-      if (isPostgresTrial()) {
-        if (!state.postgresParticipant) throw new Error("Start a new local trial with ?backend=postgres before submitting.");
-        state.requestId ||= (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
-        saveState();
-        await postgresRequest("responses", {
-          participantId: state.participantId,
-          studyDay: studyDay(),
-          studyDate: state.currentTrial?.studyDate || todayKey(),
-          predictedEScore: state.predictedEScore,
-          interactions: { fed: Boolean(state.interactions?.fed), played: Boolean(state.interactions?.played), foodDurationMs: state.interactions?.foodDurationMs, activityDurationMs: state.interactions?.activityDurationMs },
-          requestId: state.requestId
-        });
-        showToast(language === "zh" ? "试验记录已保存到本地数据库。" : language === "es" ? "Respuesta guardada en la base de datos local." : "Trial response saved to the local database.");
-      } else if (hasFirebaseConfig() && state.firebaseUid) {
-        state.requestId ||= (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
-        saveState();
-        await (await firebaseData()).submitDailyResponse({ studyDay: studyDay(), predictedEScore: state.predictedEScore, interactions: { fed: Boolean(state.interactions?.fed), played: Boolean(state.interactions?.played) }, requestId: state.requestId });
-        showToast(ac("saved"));
-      } else if (hasFirebaseConfig()) {
-        throw new Error(ac("saveFailed"));
-      }
-      state.completedToday = true; state.completedDate = todayKey(); state.screen = "home"; saveState(); render();
-    } catch (error) { console.error("Daily response was not confirmed", error); showToast(ac("saveFailed")); button.textContent = ac("retrySave"); button.disabled = false; }
-  });
-}
+function renderQuestion() { app.innerHTML = `<header class="topbar"><span class="brand">🐾 ${t("title")}</span><span class="step-pill">${t("day")} ${studyDay()} · 2 / 3</span></header><section class="question-screen"><div class="mini-dog">${puppy(state.puppyName, true, state.currentTrial?.e)}</div><p class="eyebrow">${t("day")} ${studyDay()}</p><h1>${t("moodQuestion")}</h1><p class="question-subtitle">${t("choose")}</p><label class="score-input-card" for="e-prediction"><span>${t("scoreLabel")}</span><select id="e-prediction"><option value="">—</option>${Array.from({ length: 12 }, (_, index) => index - 1).map((score) => `<option value="${score}" ${state.predictedEScore === score ? "selected" : ""}>${score}</option>`).join("")}</select></label><button id="mood-next" class="button button-primary button-wide" ${Number.isInteger(state.predictedEScore) ? "" : "disabled"}>${t("continue")}</button></section>`; document.querySelector("#e-prediction").addEventListener("change", (event) => { state.predictedEScore = event.target.value === "" ? null : Number(event.target.value); saveState(); document.querySelector("#mood-next").disabled = !Number.isInteger(state.predictedEScore); }); document.querySelector("#mood-next").addEventListener("click", () => { state.screen = "feedback"; saveState(); render(); }); }
+function renderFeedback() { const actualScore = state.currentTrial?.e ?? state.actualEScore ?? 5; app.innerHTML = `<header class="topbar"><span class="brand">🐾 ${t("title")}</span><span class="step-pill">${t("day")} ${studyDay()} · 3 / 3</span></header><section class="feedback-screen"><p class="eyebrow">${t("feedback")}</p>${puppy(state.puppyName, false, actualScore)}<div class="mood-reveal score-reveal"><span>${t("behaviorScore", { score: actualScore })}</span></div><button id="feedback-next" class="button button-primary button-wide">${t("continue")}</button></section>`; state.actualEScore = actualScore; saveState(); document.querySelector("#feedback-next").addEventListener("click", () => { state.screen = "imagine"; saveState(); render(); }); }
+function renderImagine() { app.innerHTML = `<section class="imagine-screen"><div class="imagine-puppy">${puppy(state.puppyName)}</div><p class="eyebrow">${t("imagine")}</p><h1>${t("imagineText", { name: escapeHtml(state.puppyName) })}</h1><div class="countdown" id="countdown">4</div><p>${t("seconds", { n: 4 })}</p></section>`; let n = 4; const iv = setInterval(() => { n--; const el = document.querySelector("#countdown"); if (el) el.textContent = n; if (n <= 0) { clearInterval(iv); state.screen = "complete"; saveState(); render(); } }, 1000); }
+function renderComplete() { app.innerHTML = `<section class="complete-screen"><div class="confetti">✦　✧　✦</div>${puppy(state.puppyName, true)}<p class="eyebrow">${t("day")} ${studyDay()}</p><h1>${t("complete")}</h1><p>${nextVisitText("complete", { name: escapeHtml(state.puppyName) })}</p><button id="finish-visit" class="button button-primary button-wide">${nextVisitText("done")}</button></section>`; document.querySelector("#finish-visit").addEventListener("click", async e => { const button = e.currentTarget; button.disabled = true; try { if (isPostgresTrial()) { if (!state.postgresParticipant) throw new Error("Start a new local trial with ?backend=postgres before submitting."); state.requestId ||= (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`); const result = await postgresRequest("responses", { participantId: state.participantId, studyDay: studyDay(), studyDate: state.currentTrial?.studyDate || todayKey(), predictedEScore: state.predictedEScore, interactions: { fed: Boolean(state.interactions?.fed), played: Boolean(state.interactions?.played), foodDurationMs: state.interactions?.foodDurationMs, activityDurationMs: state.interactions?.activityDurationMs }, requestId: state.requestId }); showToast(language === "zh" ? "试验记录已保存到本地数据库。" : language === "es" ? "Respuesta guardada en la base de datos local." : "Trial response saved to the local database."); if (result.autoAdvanced && result.nextStudyDay <= 24) { state.enrolledAt = result.enrolledAt || state.enrolledAt; state.completedToday = false; state.completedStudyDay = null; state.completedDate = null; state.screen = "activities"; state.prediction = null; state.predictedEScore = null; state.actualMood = null; state.actualEScore = null; state.currentTrial = null; state.interactions = { fed: false, played: false }; state.requestId = null; saveState(); render(); return; } } else if (hasFirebaseConfig() && state.firebaseUid) { state.requestId ||= (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`); await (await firebaseData()).submitDailyResponse({ studyDay: studyDay(), predictedEScore: state.predictedEScore, interactions: { fed: Boolean(state.interactions?.fed), played: Boolean(state.interactions?.played) }, requestId: state.requestId }); showToast(ac("saved")); } else if (hasFirebaseConfig()) { throw new Error(ac("saveFailed")); } state.completedToday = true; state.completedStudyDay = studyDay(); state.completedDate = studyPeriodKey(); state.screen = "home"; saveState(); render(); } catch (error) { console.error("Daily response was not confirmed", error); showToast(ac("saveFailed")); button.disabled = false; } }); }
 function renderLocked() {
-  app.innerHTML = `<header class="topbar"><span class="brand">🐾 ${t("title")}</span>${languagePicker()}</header><section class="locked-screen">${puppy(state.puppyName, true)}<div class="locked-message"><h1>${t("todayDone", { name: escapeHtml(state.puppyName) })}</h1><p>${t("idleText", { name: escapeHtml(state.puppyName) })}</p></div><button id="acknowledge" class="button button-primary button-wide">${t("close")}</button><button id="new-participant" class="text-button">${t("nameEdit")}</button></section>`;
+  app.innerHTML = `<header class="topbar"><span class="brand">🐾 ${t("title")}</span>${languagePicker()}</header><section class="locked-screen">${puppy(state.puppyName, true)}<div class="locked-message"><h1>${nextVisitText("lockedTitle", { name: escapeHtml(state.puppyName) })}</h1><p>${nextVisitText("lockedBody", { name: escapeHtml(state.puppyName) })}</p></div><button id="acknowledge" class="button button-primary button-wide">${t("close")}</button>${isPostgresTrial() ? `<button id="manage-recovery-code" class="text-button">${ac("manageCode")}</button>` : ``}<button id="new-participant" class="text-button">${t("nameEdit")}</button></section>`;
   bindLanguage(); startIdleCycle(); document.querySelector("#acknowledge").addEventListener("click", () => { document.querySelector(".locked-message").classList.add("dismissed"); document.querySelector("#acknowledge").remove(); });
-  document.querySelector("#new-participant")?.remove();
+  document.querySelector("#manage-recovery-code")?.addEventListener("click", () => { state.screen = "recovery-setup"; state.customRecoveryCodeDraft ||= pendingRecoveryCode || ""; saveState(); render(); });
+  document.querySelector("#new-participant")?.addEventListener("click", () => { clearParticipantState(); render(); });
 }
 function startIdleCycle() { clearInterval(idleTimer); const poses = ["state-look", "state-sniff", "state-doze"]; let i = 0; idleTimer = setInterval(() => { document.querySelectorAll(".idle-scene").forEach(el => { el.classList.remove(...poses); el.classList.add(poses[i]); }); i = (i + 1) % poses.length; }, 4200); }
 function renderRecoverySetup() {
-  app.innerHTML = `<section class="recovery-screen"><p class="eyebrow">${t("title")}</p><h1>${ac("codeTitle")}</h1><p>${ac("codeText")}</p>${pendingRecoveryCode ? `<code class="recovery-code">${pendingRecoveryCode}</code><button id="copy-code" class="button button-secondary button-wide">${ac("codeAction")}</button>` : `<p>${ac("codeMissing")}</p><button id="new-code" class="button button-secondary button-wide">${ac("makeCode")}</button>`}<button id="code-continue" class="button button-primary button-wide" ${pendingRecoveryCode ? "" : "disabled"}>${ac("codeSaved")}</button></section>`;
+  const customValue = state?.customRecoveryCodeDraft || pendingRecoveryCode || "";
+  app.innerHTML = `<section class="recovery-screen"><p class="eyebrow">${t("title")}</p><h1>${ac("codeTitle")}</h1><p>${ac("codeText")}</p>${pendingRecoveryCode ? `<code class="recovery-code">${pendingRecoveryCode}</code><button id="copy-code" class="button button-secondary button-wide">${ac("codeAction")}</button>` : `<p>${ac("codeMissing")}</p><button id="new-code" class="button button-secondary button-wide">${ac("makeCode")}</button>`}${isPostgresTrial() ? `<label for="custom-recovery-code">${ac("customCodeLabel")}</label><input id="custom-recovery-code" autocomplete="one-time-code" minlength="8" maxlength="80" value="${escapeHtml(customValue)}" /><p class="small-note">${ac("customCodeHint")}</p><button id="save-custom-code" class="button button-secondary button-wide">${ac("customCodeAction")}</button>` : ``}<button id="code-continue" class="button button-primary button-wide" ${pendingRecoveryCode ? "" : "disabled"}>${ac("codeSaved")}</button></section>`;
   document.querySelector("#copy-code")?.addEventListener("click", async () => { try { await navigator.clipboard.writeText(pendingRecoveryCode); showToast(ac("codeAction")); } catch { showToast(pendingRecoveryCode); } });
-  document.querySelector("#new-code")?.addEventListener("click", async e => { e.currentTarget.disabled = true; try { if (isPostgresTrial()) pendingRecoveryCode = (await postgresRequest("participants/recovery-code", { participantId: state.participantId })).recoveryCode; else pendingRecoveryCode = await (await firebaseData()).issueRecoveryCode(); render(); } catch (error) { showToast(error.message || ac("saveFailed")); e.currentTarget.disabled = false; } });
-  document.querySelector("#code-continue").addEventListener("click", () => { pendingRecoveryCode = null; state.screen = state.environmentIntroSeen ? "home" : "environment-intro"; saveState(); render(); });
+  document.querySelector("#new-code")?.addEventListener("click", async e => { e.currentTarget.disabled = true; try { if (isPostgresTrial()) pendingRecoveryCode = (await postgresRequest("participants/recovery-code", { participantId: state.participantId })).recoveryCode; else pendingRecoveryCode = await (await firebaseData()).issueRecoveryCode(); state.customRecoveryCodeDraft = pendingRecoveryCode; saveState(); render(); } catch (error) { showToast(error.message || ac("saveFailed")); e.currentTarget.disabled = false; } });
+  document.querySelector("#custom-recovery-code")?.addEventListener("input", e => { state.customRecoveryCodeDraft = e.target.value; saveState(); });
+  document.querySelector("#save-custom-code")?.addEventListener("click", async e => { const button = e.currentTarget; button.disabled = true; try { const customRecoveryCode = document.querySelector("#custom-recovery-code")?.value.trim() || ""; if (customRecoveryCode.length < 8 || customRecoveryCode.length > 80) throw new Error(ac("customCodeInvalid")); pendingRecoveryCode = (await postgresRequest("participants/recovery-code", { participantId: state.participantId, recoveryCode: customRecoveryCode })).recoveryCode; state.customRecoveryCodeDraft = pendingRecoveryCode; saveState(); render(); showToast(ac("customCodeSaved")); } catch (error) { showToast(error.message || ac("saveFailed")); button.disabled = false; } });
+  document.querySelector("#code-continue").addEventListener("click", () => { pendingRecoveryCode = null; state.customRecoveryCodeDraft = ""; state.screen = state.environmentIntroSeen ? "home" : "environment-intro"; saveState(); render(); });
 }
 function renderRecoveryLogin() {
   app.innerHTML = `<section class="recovery-screen"><p class="eyebrow">${t("title")}</p><h1>${ac("recoverTitle")}</h1><form id="recovery-form"><label for="recovery-code">${ac("codeLabel")}</label><input id="recovery-code" autocomplete="one-time-code" required /><button class="button button-primary button-wide" type="submit">${ac("restore")}</button></form><button id="back-to-welcome" class="text-button">${t("begin")}</button></section>`;
   document.querySelector("#back-to-welcome").addEventListener("click", renderOnboarding);
-  document.querySelector("#recovery-form").addEventListener("submit", async e => { e.preventDefault(); const button = e.currentTarget.querySelector("button"); button.disabled = true; try { if (isPostgresTrial()) { const response = await fetch("/api/participants/recover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recoveryCode: document.querySelector("#recovery-code").value }) }); const profile = await response.json(); if (!response.ok) throw new Error(profile.error || ac("saveFailed")); state = { participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, puppyName: profile.puppyName, language, screen: "recovery-setup", environmentIntroSeen: true, completedToday: profile.completedToday, completedDate: profile.completedDate, enrolledDate: profile.enrolledDate, interactions: { fed: false, played: false } }; pendingRecoveryCode = profile.recoveryCode; } else { const profile = await (await firebaseData()).recoverParticipant(document.querySelector("#recovery-code").value); state = { participantId: profile.uid, firebaseUid: profile.uid, puppyName: profile.puppyName, language, screen: "home", environmentIntroSeen: true, completedToday: profile.lastSubmittedDate === todayKey(), completedDate: profile.lastSubmittedDate, enrolledDate: profile.enrolledOn, interactions: { fed: false, played: false }, nextStudyDay: profile.nextStudyDay }; } saveState(); render(); } catch (error) { showToast(error.message || ac("saveFailed")); button.disabled = false; } });
+  document.querySelector("#recovery-form").addEventListener("submit", async e => { e.preventDefault(); const button = e.currentTarget.querySelector("button"); button.disabled = true; try { if (isPostgresTrial()) { const response = await fetch("/api/participants/recover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recoveryCode: document.querySelector("#recovery-code").value }) }); const profile = await response.json(); if (!response.ok) throw new Error(profile.error || ac("saveFailed")); state = { participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, puppyName: profile.puppyName, language, screen: "recovery-setup", environmentIntroSeen: true, completedToday: profile.completedToday, completedDate: profile.completedStudyDay ? `block-${profile.completedStudyDay}` : profile.completedDate ? `date-${profile.completedDate}` : null, completedStudyDay: profile.completedStudyDay, enrolledDate: profile.enrolledDate, enrolledAt: profile.enrolledAt || null, studyDayMinutes: profile.studyDayMinutes || DEFAULT_STUDY_DAY_MINUTES, interactions: { fed: false, played: false } }; pendingRecoveryCode = profile.recoveryCode; } else { const profile = await (await firebaseData()).recoverParticipant(document.querySelector("#recovery-code").value); state = { participantId: profile.uid, firebaseUid: profile.uid, puppyName: profile.puppyName, language, screen: "home", environmentIntroSeen: true, completedToday: profile.lastSubmittedDate === todayKey(), completedDate: profile.lastSubmittedDate, enrolledDate: profile.enrolledOn, interactions: { fed: false, played: false }, nextStudyDay: profile.nextStudyDay }; } saveState(); render(); } catch (error) { showToast(error.message || ac("saveFailed")); button.disabled = false; } });
 }
 async function resumeFirebaseParticipant() {
   if (isPostgresTrial()) return;
@@ -504,13 +387,13 @@ async function resumeFirebaseParticipant() {
   } catch (error) { console.error("Could not resume participant", error); }
 }
 async function resumePostgresParticipant() {
-  if (!isPostgresTrial() || !state?.puppyName || state.postgresParticipant) return;
+  if (!isPostgresTrial() || !state?.puppyName || (state.postgresParticipant && state.participantToken)) return;
   try {
     const profile = await postgresRequest("participants", {
       ...(state.localOnly && state.participantId ? { participantId: state.participantId } : {}),
       puppyName: state.puppyName
     });
-    state = { ...state, participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: profile.recoveryCode ? "recovery-setup" : "home", environmentIntroSeen: true, enrolledDate: profile.enrolledDate || todayKey(), completedToday: false, completedDate: null, prediction: null, predictedEScore: null, actualMood: null, actualEScore: null, currentTrial: null, requestId: null, interactions: { fed: false, played: false }, localOnly: true };
+    state = { ...state, participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: profile.recoveryCode ? "recovery-setup" : "home", environmentIntroSeen: true, enrolledDate: profile.enrolledDate || todayKey(), enrolledAt: profile.enrolledAt || null, studyDayMinutes: profile.studyDayMinutes || DEFAULT_STUDY_DAY_MINUTES, completedToday: false, completedDate: null, completedStudyDay: null, prediction: null, predictedEScore: null, actualMood: null, actualEScore: null, currentTrial: null, requestId: null, interactions: { fed: false, played: false }, localOnly: true };
     pendingRecoveryCode = profile.recoveryCode;
     saveState(); render();
   } catch (error) {
@@ -519,7 +402,7 @@ async function resumePostgresParticipant() {
   }
 }
 function showToast(message) { toast.textContent = message; toast.classList.add("visible"); setTimeout(() => toast.classList.remove("visible"), 1800); }
-if (isPostgresTrial() && state?.puppyName && !state.postgresParticipant) {
+if (isPostgresTrial() && state?.puppyName && (!state.postgresParticipant || !state.participantToken)) {
   app.innerHTML = `<section class="recovery-screen"><h1>${language === "zh" ? "正在连接本地数据库…" : "Connecting to the local database…"}</h1></section>`;
   resumePostgresParticipant();
 } else {
@@ -533,6 +416,15 @@ if (isPostgresTrial() && state?.puppyName && !state.postgresParticipant) {
 
 
 resumeFirebaseParticipant();
+
+
+
+
+
+
+
+
+
 
 
 

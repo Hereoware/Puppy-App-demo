@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { bearerSession, issueSession, requireAdmin, requireParticipant } from "./lib/auth.js";
 import { prisma } from "./lib/prisma.js";
+import { DEFAULT_STUDY_DAY_MINUTES, dateInZone, studyScheduleForParticipant } from "./lib/study-schedule.js";
 
 const backendDirectory = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(backendDirectory, ".env") });
@@ -44,6 +45,7 @@ const participantSchema = z.object({
   puppyName: z.string().trim().min(1).max(24)
 });
 const recoverySchema = z.object({ recoveryCode: z.string().trim().min(8).max(80) });
+const recoveryCodeUpdateSchema = z.object({ participantId: z.string().min(1).max(40), recoveryCode: z.string().trim().min(8).max(80).optional() });
 const responseSchema = z.object({
   participantId: z.string().min(1).max(40),
   studyDay: z.number().int().min(1).max(24),
@@ -57,6 +59,7 @@ const responseSchema = z.object({
   message: "A prediction is required."
 });
 
+const studyGroupSchema = z.enum(["TREATMENT", "CONTROL"]);
 const importedTrialSchema = z.object({
   day: z.number().int().min(1).max(24),
   t: z.number().int().min(0).max(1),
@@ -67,7 +70,8 @@ const importedTrialSchema = z.object({
 });
 const trialOrderImportSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  category: z.string().trim().min(1).max(80).default("未分类"),
+  category: z.string().trim().min(1).max(80).default("Uncategorized"),
+  assignmentGroup: studyGroupSchema,
   versions: z.array(z.object({
     code: z.string().trim().min(1).max(40),
     trials: z.array(importedTrialSchema).length(24)
@@ -85,7 +89,8 @@ const trialOrderImportSchema = z.object({
 });
 const trialOrderMetadataSchema = z.object({
   name: z.string().trim().min(1).max(120),
-  category: z.string().trim().min(1).max(80)
+  category: z.string().trim().min(1).max(80),
+  assignmentGroup: studyGroupSchema.optional()
 });
 
 const adminLoginAttempts = new Map();
@@ -135,17 +140,6 @@ function newRecoveryCode() {
   return randomBytes(16).toString("hex").toUpperCase().match(/.{1,4}/g).join("-");
 }
 
-function dateInZone(date, timeZone = "America/New_York") {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", {
-    timeZone, year: "numeric", month: "2-digit", day: "2-digit"
-  }).formatToParts(date).map((part) => [part.type, part.value]));
-  return `${parts.year}-${parts.month}-${parts.day}`;
-}
-function calendarDayNumber(enrolledAt, today) {
-  const enrolled = dateInZone(enrolledAt);
-  return Math.floor((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${enrolled}T00:00:00Z`)) / 86400000) + 1;
-}
-
 app.post("/api/admin/login", limitAdminLogin, (request, response) => {
   if (!passwordMatches(request.body?.password)) return response.status(401).json({ error: "The researcher password is incorrect." });
   const key = request.ip || request.socket.remoteAddress || "unknown";
@@ -161,7 +155,8 @@ app.get("/api/admin/trial-orders", requireAdmin, async (_request, response) => {
   response.json(sets.map((set) => ({
     id: set.id,
     name: set.name,
-    category: set.category,
+    category: normalizeCategoryLabel(set.category),
+    assignmentGroup: set.assignmentGroup,
     active: set.active,
     createdAt: set.createdAt,
     versions: set.versions.map((version) => ({ code: version.code, assignedCount: version._count.assigned, days: version.trials.length }))
@@ -173,11 +168,12 @@ app.post("/api/admin/trial-orders", requireAdmin, async (request, response) => {
   if (!parsed.success) return response.status(400).json({ error: parsed.error.issues[0]?.message || "The trial-order file is invalid." });
   const payload = parsed.data;
   const created = await prisma.$transaction(async (tx) => {
-    await tx.trialOrderSet.updateMany({ where: { active: true }, data: { active: false } });
+    await tx.trialOrderSet.updateMany({ where: { active: true, assignmentGroup: payload.assignmentGroup }, data: { active: false } });
     return tx.trialOrderSet.create({
       data: {
         name: payload.name,
-        category: payload.category,
+        category: normalizeCategoryLabel(payload.category),
+        assignmentGroup: payload.assignmentGroup,
         active: true,
         versions: {
           create: payload.versions.map((version) => ({
@@ -189,7 +185,7 @@ app.post("/api/admin/trial-orders", requireAdmin, async (request, response) => {
       include: { _count: { select: { versions: true } } }
     });
   });
-  response.status(201).json({ id: created.id, name: created.name, versionCount: created._count.versions, active: created.active });
+  response.status(201).json({ id: created.id, name: created.name, versionCount: created._count.versions, active: created.active, assignmentGroup: created.assignmentGroup });
 });
 
 app.patch("/api/admin/trial-orders/:id", requireAdmin, async (request, response) => {
@@ -197,8 +193,15 @@ app.patch("/api/admin/trial-orders/:id", requireAdmin, async (request, response)
   if (!parsed.success) return response.status(400).json({ error: parsed.error.issues[0]?.message || "Invalid trial-order details." });
   const existing = await prisma.trialOrderSet.findUnique({ where: { id: request.params.id }, select: { id: true } });
   if (!existing) return response.status(404).json({ error: "Trial-order set was not found." });
-  const set = await prisma.trialOrderSet.update({ where: { id: existing.id }, data: parsed.data });
-  response.json({ id: set.id, name: set.name, category: set.category, active: set.active });
+  const set = await prisma.trialOrderSet.update({
+    where: { id: existing.id },
+    data: {
+      name: parsed.data.name,
+      category: normalizeCategoryLabel(parsed.data.category),
+      ...(parsed.data.assignmentGroup ? { assignmentGroup: parsed.data.assignmentGroup } : {})
+    }
+  });
+  response.json({ id: set.id, name: set.name, category: normalizeCategoryLabel(set.category), assignmentGroup: set.assignmentGroup, active: set.active });
 });
 
 app.post("/api/admin/trial-orders/:id/activate", requireAdmin, async (request, response) => {
@@ -206,10 +209,10 @@ app.post("/api/admin/trial-orders/:id/activate", requireAdmin, async (request, r
   if (!existing) return response.status(404).json({ error: "Trial-order set was not found." });
   if (!existing._count.versions) return response.status(409).json({ error: "This set has no versions to assign." });
   await prisma.$transaction(async (tx) => {
-    await tx.trialOrderSet.updateMany({ where: { active: true }, data: { active: false } });
+    await tx.trialOrderSet.updateMany({ where: { active: true, assignmentGroup: existing.assignmentGroup }, data: { active: false } });
     await tx.trialOrderSet.update({ where: { id: existing.id }, data: { active: true } });
   });
-  response.json({ id: existing.id, active: true });
+  response.json({ id: existing.id, assignmentGroup: existing.assignmentGroup, active: true });
 });
 
 app.delete("/api/admin/trial-orders/:id", requireAdmin, async (request, response) => {
@@ -225,10 +228,80 @@ app.delete("/api/admin/trial-orders/:id", requireAdmin, async (request, response
   response.status(204).end();
 });
 
-async function chooseActiveVersion() {
-  const activeSet = await prisma.trialOrderSet.findFirst({ where: { active: true }, include: { versions: true }, orderBy: { createdAt: "desc" } });
-  if (!activeSet?.versions.length) return null;
-  return activeSet.versions[randomInt(activeSet.versions.length)];
+function normalizeCategoryLabel(category) {
+  return category === "未分类" ? "Uncategorized" : category;
+}
+function pickRandomVersion(versions) {
+  return versions[randomInt(versions.length)];
+}
+async function activeTrialSetsByGroup(client = prisma) {
+  const activeSets = await client.trialOrderSet.findMany({ where: { active: true }, include: { versions: true }, orderBy: { createdAt: "desc" } });
+  const byGroup = new Map();
+  for (const set of activeSets) {
+    if (!set.versions.length || byGroup.has(set.assignmentGroup)) continue;
+    byGroup.set(set.assignmentGroup, set);
+  }
+  return byGroup;
+}
+async function chooseBalancedAssignment(client = prisma) {
+  const activeSets = await activeTrialSetsByGroup(client);
+  const treatmentSet = activeSets.get("TREATMENT");
+  const controlSet = activeSets.get("CONTROL");
+  if (!treatmentSet && !controlSet) return null;
+  if (!treatmentSet) {
+    const version = pickRandomVersion(controlSet.versions);
+    return { assignedGroup: "CONTROL", assignedVersionId: version.id, assignedVersionCode: version.code };
+  }
+  if (!controlSet) {
+    const version = pickRandomVersion(treatmentSet.versions);
+    return { assignedGroup: "TREATMENT", assignedVersionId: version.id, assignedVersionCode: version.code };
+  }
+  const counts = await client.participant.groupBy({
+    by: ["assignedGroup"],
+    _count: { _all: true },
+    where: { assignedGroup: { in: ["TREATMENT", "CONTROL"] } }
+  });
+  const treatmentCount = counts.find((item) => item.assignedGroup === "TREATMENT")?._count._all || 0;
+  const controlCount = counts.find((item) => item.assignedGroup === "CONTROL")?._count._all || 0;
+  const assignedGroup = treatmentCount === controlCount
+    ? (randomInt(2) === 0 ? "TREATMENT" : "CONTROL")
+    : treatmentCount < controlCount ? "TREATMENT" : "CONTROL";
+  const set = activeSets.get(assignedGroup);
+  const version = pickRandomVersion(set.versions);
+  return { assignedGroup, assignedVersionId: version.id, assignedVersionCode: version.code };
+}
+async function hydrateParticipantAssignment(participant, client = prisma) {
+  if (!participant) return null;
+  if (participant.assignedVersionId && participant.assignedGroup) return participant;
+  if (participant.assignedVersionId) {
+    const assignedVersion = await client.trialOrderVersion.findUnique({
+      where: { id: participant.assignedVersionId },
+      select: { set: { select: { assignmentGroup: true } } }
+    });
+    const inferredGroup = assignedVersion?.set?.assignmentGroup || null;
+    if (inferredGroup && participant.assignedGroup !== inferredGroup) {
+      return client.participant.update({ where: { id: participant.id }, data: { assignedGroup: inferredGroup } });
+    }
+    return participant;
+  }
+  const assignment = await chooseBalancedAssignment(client);
+  if (!assignment) return null;
+  return client.participant.update({
+    where: { id: participant.id },
+    data: { assignedVersionId: assignment.assignedVersionId, assignedGroup: assignment.assignedGroup }
+  });
+}
+async function readParticipantAssignment(participant) {
+  if (!participant?.assignedVersionId) return { assignedVersion: null, assignedGroup: participant?.assignedGroup || null };
+  const assignedVersion = await prisma.trialOrderVersion.findUnique({
+    where: { id: participant.assignedVersionId },
+    select: { code: true, set: { select: { assignmentGroup: true } } }
+  });
+  const assignedGroup = participant.assignedGroup || assignedVersion?.set?.assignmentGroup || null;
+  if (assignedGroup && participant.assignedGroup !== assignedGroup) {
+    await prisma.participant.update({ where: { id: participant.id }, data: { assignedGroup } });
+  }
+  return { assignedVersion: assignedVersion?.code || null, assignedGroup };
 }
 
 app.post("/api/participants", limitEnrollment, async (request, response) => {
@@ -249,28 +322,49 @@ app.post("/api/participants", limitEnrollment, async (request, response) => {
     participant = await prisma.participant.findUnique({ where: { id: requestedId } });
     if (participant) participant = await prisma.participant.update({ where: { id: requestedId }, data: { puppyName: parsed.data.puppyName } });
     else {
-      const assignedVersion = await chooseActiveVersion();
-      if (!assignedVersion) return response.status(409).json({ error: "No trial order is active. Import one from the researcher page first." });
-      participant = await prisma.participant.create({ data: { id: requestedId, puppyName: parsed.data.puppyName, assignedVersionId: assignedVersion.id } });
+      const assignment = await chooseBalancedAssignment();
+      if (!assignment) return response.status(409).json({ error: "No active treatment/control trial order is available. Import one from the researcher page first." });
+      participant = await prisma.participant.create({
+        data: {
+          id: requestedId,
+          puppyName: parsed.data.puppyName,
+          assignedGroup: assignment.assignedGroup,
+          assignedVersionId: assignment.assignedVersionId
+        }
+      });
     }
   } else {
-    const assignedVersion = await chooseActiveVersion();
-    if (!assignedVersion) return response.status(409).json({ error: "No trial order is active. Import one from the researcher page first." });
-    participant = await prisma.participant.create({ data: { puppyName: parsed.data.puppyName, assignedVersionId: assignedVersion.id } });
+    const assignment = await chooseBalancedAssignment();
+    if (!assignment) return response.status(409).json({ error: "No active treatment/control trial order is available. Import one from the researcher page first." });
+    participant = await prisma.participant.create({
+      data: {
+        puppyName: parsed.data.puppyName,
+        assignedGroup: assignment.assignedGroup,
+        assignedVersionId: assignment.assignedVersionId
+      }
+    });
   }
 
-  if (!participant.assignedVersionId) {
-    const assignedVersion = await chooseActiveVersion();
-    if (!assignedVersion) return response.status(409).json({ error: "No trial order is active. Import one from the researcher page first." });
-    participant = await prisma.participant.update({ where: { id: participant.id }, data: { assignedVersionId: assignedVersion.id } });
-  }
+  participant = await hydrateParticipantAssignment(participant);
+  if (!participant?.assignedVersionId) return response.status(409).json({ error: "No active treatment/control trial order is available. Import one from the researcher page first." });
   let recoveryCode = null;
   if (!participant.recoveryCodeDigest) {
     recoveryCode = newRecoveryCode();
     participant = await prisma.participant.update({ where: { id: participant.id }, data: { recoveryCodeDigest: recoveryDigest(recoveryCode) } });
   }
-  const assignedVersion = await prisma.trialOrderVersion.findUnique({ where: { id: participant.assignedVersionId }, select: { code: true } });
-  response.status(201).json({ participantId: participant.id, puppyName: participant.puppyName, assignedVersion: assignedVersion?.code || null, enrolledDate: dateInZone(participant.enrolledAt, participant.timeZone), token: issueSession("participant", participant.id), recoveryCode });
+  const assignment = await readParticipantAssignment(participant);
+  const schedule = studyScheduleForParticipant(participant);
+  response.status(201).json({
+    participantId: participant.id,
+    puppyName: participant.puppyName,
+    assignedGroup: assignment.assignedGroup,
+    assignedVersion: assignment.assignedVersion,
+    enrolledDate: dateInZone(participant.enrolledAt, participant.timeZone),
+    enrolledAt: participant.enrolledAt.toISOString(),
+    studyDayMinutes: schedule.studyDayMinutes,
+    token: issueSession("participant", participant.id),
+    recoveryCode
+  });
 });
 
 app.post("/api/participants/recover", limitRecovery, async (request, response) => {
@@ -281,16 +375,20 @@ app.post("/api/participants/recover", limitRecovery, async (request, response) =
   const recoveryCode = newRecoveryCode();
   const rotated = await prisma.participant.updateMany({ where: { id: participant.id, recoveryCodeDigest: recoveryDigest(parsed.data.recoveryCode) }, data: { recoveryCodeDigest: recoveryDigest(recoveryCode) } });
   if (rotated.count !== 1) return response.status(404).json({ error: "Recovery code not recognized." });
-  const today = dateInZone(new Date(), participant.timeZone);
-  const currentDay = calendarDayNumber(participant.enrolledAt, today);
+  const schedule = studyScheduleForParticipant(participant);
+  const today = schedule.currentStudyDate;
+  const currentDay = schedule.currentStudyDay;
   const savedToday = currentDay <= 24 ? await prisma.dailyResponse.findUnique({ where: { participantId_studyDay: { participantId: participant.id, studyDay: currentDay } }, select: { studyDate: true } }) : null;
-  response.json({ participantId: participant.id, puppyName: participant.puppyName, enrolledDate: dateInZone(participant.enrolledAt, participant.timeZone), token: issueSession("participant", participant.id), recoveryCode, completedToday: Boolean(savedToday), completedDate: savedToday ? today : null });
+  const assignment = await readParticipantAssignment(participant);
+  response.json({ participantId: participant.id, puppyName: participant.puppyName, assignedGroup: assignment.assignedGroup, assignedVersion: assignment.assignedVersion, enrolledDate: dateInZone(participant.enrolledAt, participant.timeZone), enrolledAt: participant.enrolledAt.toISOString(), studyDayMinutes: schedule.studyDayMinutes, token: issueSession("participant", participant.id), recoveryCode, completedToday: Boolean(savedToday), completedDate: savedToday ? today : null, completedStudyDay: savedToday ? currentDay : null });
 });
 
 app.post("/api/participants/recovery-code", async (request, response) => {
-  const participantId = request.body?.participantId;
-  if (!participantId || !requireParticipant(request, response, participantId)) return;
-  const recoveryCode = newRecoveryCode();
+  const parsed = recoveryCodeUpdateSchema.safeParse(request.body);
+  if (!parsed.success) return response.status(400).json({ error: "Enter a recovery code between 8 and 80 characters." });
+  const { participantId } = parsed.data;
+  if (!requireParticipant(request, response, participantId)) return;
+  const recoveryCode = parsed.data.recoveryCode?.trim() || newRecoveryCode();
   await prisma.participant.update({ where: { id: participantId }, data: { recoveryCodeDigest: recoveryDigest(recoveryCode) } });
   response.json({ recoveryCode });
 });
@@ -304,7 +402,8 @@ app.get("/api/participants/:participantId/trials/:studyDay", async (request, res
     include: { assignedVersion: true }
   });
   if (!participant || participant.status !== "ACTIVE") return response.status(404).json({ error: "Participant was not found." });
-  const currentDay = calendarDayNumber(participant.enrolledAt, dateInZone(new Date(), participant.timeZone));
+  const schedule = studyScheduleForParticipant(participant);
+  const currentDay = schedule.currentStudyDay;
   if (day !== currentDay) return response.status(409).json({ error: "Only the current study day is available." });
   const existing = await prisma.dailyResponse.findUnique({ where: { participantId_studyDay: { participantId: participant.id, studyDay: day } } });
   if (existing) return response.status(409).json({ error: "Today’s trial is already complete." });
@@ -312,7 +411,7 @@ app.get("/api/participants/:participantId/trials/:studyDay", async (request, res
     ? participant.assignedVersion.trials.find((item) => item.day === day)
     : null;
   if (!trial) return response.status(409).json({ error: "No assigned trial is available for this day." });
-  response.json({ assignedVersion: participant.assignedVersion.code, studyDate: dateInZone(new Date(), participant.timeZone), ...trial });
+  response.json({ assignedVersion: participant.assignedVersion.code, studyDate: schedule.currentStudyDate, studyDayMinutes: schedule.studyDayMinutes, ...trial });
 });
 
 app.post("/api/responses", async (request, response) => {
@@ -323,7 +422,8 @@ app.post("/api/responses", async (request, response) => {
   const participant = await prisma.participant.findUnique({ where: { id: data.participantId } });
   if (!participant || participant.status !== "ACTIVE") return response.status(404).json({ error: "Participant was not found." });
 
-  const currentDay = calendarDayNumber(participant.enrolledAt, dateInZone(new Date(), participant.timeZone));
+  const schedule = studyScheduleForParticipant(participant);
+  const currentDay = schedule.currentStudyDay;
   if (data.studyDay !== currentDay) return response.status(409).json({ error: "A response can only be submitted for the current study day." });
 
   const previousRequest = await prisma.dailyResponse.findUnique({ where: { participantId_requestId: { participantId: data.participantId, requestId: data.requestId } } });
@@ -337,7 +437,7 @@ app.post("/api/responses", async (request, response) => {
     ? await prisma.trialOrderVersion.findUnique({ where: { id: participant.assignedVersionId } })
     : null;
   const assignedTrial = Array.isArray(assignedVersion?.trials) ? assignedVersion.trials.find((trial) => trial.day === data.studyDay) : null;
-  if (assignedTrial && data.studyDate !== dateInZone(new Date(), participant.timeZone)) {
+  if (assignedTrial && data.studyDate !== schedule.currentStudyDate) {
     return response.status(409).json({ error: "The response date must be today in the study time zone." });
   }
   try {
@@ -365,7 +465,16 @@ app.post("/api/responses", async (request, response) => {
     if (error.code === "P2002") return response.status(409).json({ error: "A response already exists for this study day." });
     throw error;
   }
-  response.status(201).json({ saved: true, alreadySaved: false });
+
+  const shouldAutoAdvance = schedule.studyDayMinutes < DEFAULT_STUDY_DAY_MINUTES && currentDay < 24;
+  if (shouldAutoAdvance) {
+    const now = new Date();
+    const advancedEnrollment = new Date(now.getTime() - currentDay * schedule.studyDayMinutes * 60000);
+    await prisma.participant.update({ where: { id: participant.id }, data: { enrolledAt: advancedEnrollment } });
+    return response.status(201).json({ saved: true, alreadySaved: false, autoAdvanced: true, nextStudyDay: currentDay + 1, enrolledAt: advancedEnrollment.toISOString() });
+  }
+
+  response.status(201).json({ saved: true, alreadySaved: false, autoAdvanced: false });
 });
 
 app.get("/api/health", async (_request, response) => {
@@ -375,7 +484,15 @@ app.get("/api/health", async (_request, response) => {
 
 app.get("/api/responses", requireAdmin, async (_request, response) => {
   const responses = await prisma.dailyResponse.findMany({
-    include: { participant: { select: { puppyName: true } } },
+    include: {
+      participant: {
+        select: {
+          puppyName: true,
+          assignedGroup: true,
+          assignedVersion: { select: { code: true, set: { select: { assignmentGroup: true } } } }
+        }
+      }
+    },
     orderBy: [{ studyDate: "desc" }, { createdAt: "desc" }]
   });
   response.json(responses);
@@ -383,10 +500,22 @@ app.get("/api/responses", requireAdmin, async (_request, response) => {
 
 app.get("/api/participants", requireAdmin, async (_request, response) => {
   const participants = await prisma.participant.findMany({
-    select: { id: true, puppyName: true, enrolledAt: true, status: true, assignedVersion: { select: { code: true } }, _count: { select: { responses: true } } },
+    select: {
+      id: true,
+      puppyName: true,
+      enrolledAt: true,
+      status: true,
+      assignedGroup: true,
+      assignedVersion: { select: { code: true, set: { select: { assignmentGroup: true } } } },
+      _count: { select: { responses: true } }
+    },
     orderBy: { enrolledAt: "desc" }
   });
-  response.json(participants.map(({ _count, ...participant }) => ({ ...participant, responseCount: _count.responses })));
+  response.json(participants.map(({ _count, ...participant }) => ({
+    ...participant,
+    assignedGroup: participant.assignedGroup || participant.assignedVersion?.set?.assignmentGroup || null,
+    responseCount: _count.responses
+  })));
 });
 
 app.use((error, _request, response, _next) => {
@@ -406,3 +535,8 @@ async function shutdown() {
 }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
+
+
+
+
+
