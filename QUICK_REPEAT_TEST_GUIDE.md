@@ -124,6 +124,16 @@ Open this URL in a private/incognito window, using the same real Render base URL
 <YOUR-REAL-RENDER-URL>/?backend=postgres&timeframe=short
 ```
 
+For short version
+```text
+https://puppy-study-platform.onrender.com/?backend=postgres&timeframe=short
+```
+
+For Long version
+```text
+https://<puppy-study-platform.onrender.com/?backend=postgres
+```
+
 Use the URL above for the self-paced Short timeframe; use `<YOUR-REAL-RENDER-URL>/?backend=postgres` for Long, which advances one calendar day at a time. Both links use the same Render service, Neon database, and researcher admin. Timeframe is stored on the participant and cannot be changed by opening the other link later. Create a new synthetic test participant, save the recovery code, and finish the visit. Short participants can continue immediately; Long participants return on the next calendar day. A participant enrolled before a trial order was activated is not automatically assigned one; create a fresh test participant after activation.
 
 To install the cloud trial on a phone's Home Screen, first open the participant URL after the latest deployment is Live, then use the browser's **Add to Home Screen** action. The participant timeframe is saved with the participant record and remains the same when restored with its recovery code.

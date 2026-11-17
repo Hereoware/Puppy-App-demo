@@ -26,7 +26,7 @@ const authCopy = {
 const neutralCopy = {
   en: {
     envTitle: "A day in the puppy’s environment",
-    envText: "This puppy has two foods and two activities. Each day includes one food (T) and one activity (A).",
+    envText: "This puppy has two foods and two activities. Each day includes one food (T) and one activity (A). Other environmental factors may vary from day to day and can also have a small effect on the puppy’s mood.",
     envFoods: "Foods: carrots and sardines",
     envActivities: "Activities: tug-of-war and fetch",
     envContinue: "Continue to the daily visit",
@@ -62,7 +62,7 @@ const neutralCopy = {
   },
   zh: {
     envTitle: "认识小狗的生活环境",
-    envText: "这只小狗有两种食物和两种活动。每天会出现一种食物（T）和一种活动（A）。",
+    envText: "这只小狗有两种食物和两种活动。每天会出现一种食物（T）和一种活动（A）。除了食物和活动之外，环境中还有其他不固定因素，也可能会轻微影响小狗的心情。",
     envFoods: "食物：胡萝卜和沙丁鱼",
     envActivities: "活动：拔河和捡球",
     envContinue: "继续今天的访问",
@@ -98,7 +98,7 @@ const neutralCopy = {
   },
   es: {
     envTitle: "El entorno del cachorro",
-    envText: "Este cachorro tiene dos alimentos y dos actividades. Cada día incluye un alimento (T) y una actividad (A).",
+    envText: "Este cachorro tiene dos alimentos y dos actividades. Cada día incluye un alimento (T) y una actividad (A). Además de la comida y las actividades, otros factores del entorno pueden variar y afectar ligeramente el estado de ánimo del cachorro.",
     envFoods: "Alimentos: zanahorias y sardinas",
     envActivities: "Actividades: tira y afloja y buscar",
     envContinue: "Continuar con la visita de hoy",
