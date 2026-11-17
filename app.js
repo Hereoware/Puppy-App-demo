@@ -19,9 +19,9 @@ const translations = {
   }
 };
 const authCopy = {
-  en: { emulator: "Local test mode: submissions are stored only in the emulator on this computer.", recover: "I already have a recovery code", codeTitle: "Save your recovery code", codeText: "Keep this private code somewhere safe. It is the only way to restore this participant on another device.", codeAction: "Copy code", codeSaved: "I saved my code", codeMissing: "Your recovery code is not available in this browser. Create a new one.", makeCode: "Create a new code", recoverTitle: "Restore your participant", codeLabel: "Recovery code", restore: "Restore my puppy", localOnly: "Firebase is not configured. This run is saved only on this device and is not sent to the study database.", saveFailed: "We could not save today’s response. Please stay on this page and try again.", saved: "Response saved securely.", customCodeLabel: "Choose your own recovery code", customCodeHint: "Use 8–80 characters so it is easy for you to remember.", customCodeAction: "Save my recovery code", customCodeSaved: "Recovery code updated.", customCodeInvalid: "Enter a recovery code between 8 and 80 characters.", manageCode: "Recovery code" },
-  zh: { emulator: "本地模拟模式：提交记录只保存在这台电脑的模拟器中。", recover: "我有参与者恢复码", codeTitle: "请保存恢复码", codeText: "请妥善保管此私人代码。换设备恢复同一参与者身份时需要使用它。", codeAction: "复制恢复码", codeSaved: "我已保存恢复码", codeMissing: "此浏览器中没有恢复码，请生成一个新码。", makeCode: "生成新恢复码", recoverTitle: "恢复已有参与者", codeLabel: "参与者恢复码", restore: "恢复我的小狗", localOnly: "Firebase 尚未配置。本次记录仅保存在此设备，不会发送到研究数据库。", saveFailed: "今天的回答暂未保存。请留在此页面并重试。", saved: "回答已安全保存。", customCodeLabel: "设置你自己的恢复码", customCodeHint: "请输入 8–80 个字符，选一个你自己记得住的。", customCodeAction: "保存我的恢复码", customCodeSaved: "恢复码已更新。", customCodeInvalid: "请输入 8–80 个字符的恢复码。", manageCode: "恢复码" },
-  es: { emulator: "Modo de prueba local: las respuestas solo se guardan en el emulador de este equipo.", recover: "Ya tengo un código de recuperación", codeTitle: "Guarda tu código de recuperación", codeText: "Guarda este código privado en un lugar seguro. Lo necesitarás para restaurar este participante en otro dispositivo.", codeAction: "Copiar código", codeSaved: "He guardado mi código", codeMissing: "Este navegador no tiene el código. Crea uno nuevo.", makeCode: "Crear código nuevo", recoverTitle: "Restaurar participante", codeLabel: "Código de recuperación", restore: "Restaurar mi cachorro", localOnly: "Firebase no está configurado. Esta sesión solo se guarda en este dispositivo y no se envía a la base de datos.", saveFailed: "No pudimos guardar la respuesta de hoy. Quédate en esta página e inténtalo de nuevo.", saved: "Respuesta guardada de forma segura.", customCodeLabel: "Elige tu propio código de recuperación", customCodeHint: "Usa entre 8 y 80 caracteres para que te resulte fácil recordarlo.", customCodeAction: "Guardar mi código", customCodeSaved: "Código de recuperación actualizado.", customCodeInvalid: "Introduce un código de recuperación de 8 a 80 caracteres.", manageCode: "Código de recuperación" }
+  en: { emulator: "Local test mode: submissions are stored only in the emulator on this computer.", recover: "I already have a recovery code", codeTitle: "Save your recovery code", codeText: "Keep this private code somewhere safe. It is the only way to restore this participant on another device.", codeAction: "Copy code", codeSaved: "I saved my code", codeMissing: "Your recovery code is not available in this browser. Create a new one.", makeCode: "Create a new code", recoverTitle: "Restore your participant", codeLabel: "Recovery code", restore: "Restore my puppy", localOnly: "Firebase is not configured. This run is saved only on this device and is not sent to the study database.", saveFailed: "We could not save today’s response. Please stay on this page and try again.", saved: "Response saved securely.", customCodeLabel: "Choose your own recovery code", customCodeHint: "Use 8–80 characters so it is easy for you to remember.", customCodeAction: "Save my recovery code", customCodeSaved: "Recovery code updated.", customCodeInvalid: "Enter a recovery code between 8 and 80 characters.", manageCode: "Recovery code", databaseNotice: "Study test: responses are saved to the study database." },
+  zh: { emulator: "本地模拟模式：提交记录只保存在这台电脑的模拟器中。", recover: "我有参与者恢复码", codeTitle: "请保存恢复码", codeText: "请妥善保管此私人代码。换设备恢复同一参与者身份时需要使用它。", codeAction: "复制恢复码", codeSaved: "我已保存恢复码", codeMissing: "此浏览器中没有恢复码，请生成一个新码。", makeCode: "生成新恢复码", recoverTitle: "恢复已有参与者", codeLabel: "参与者恢复码", restore: "恢复我的小狗", localOnly: "Firebase 尚未配置。本次记录仅保存在此设备，不会发送到研究数据库。", saveFailed: "今天的回答暂未保存。请留在此页面并重试。", saved: "回答已保存。", customCodeLabel: "设置你自己的恢复码", customCodeHint: "请输入 8–80 个字符，选一个你自己记得住的。", customCodeAction: "保存我的恢复码", customCodeSaved: "恢复码已更新。", customCodeInvalid: "请输入 8–80 个字符的恢复码。", manageCode: "恢复码", databaseNotice: "研究测试：回答将保存到研究数据库。" },
+  es: { emulator: "Modo de prueba local: las respuestas solo se guardan en el emulador de este equipo.", recover: "Ya tengo un código de recuperación", codeTitle: "Guarda tu código de recuperación", codeText: "Guarda este código privado en un lugar seguro. Lo necesitarás para restaurar este participante en otro dispositivo.", codeAction: "Copiar código", codeSaved: "He guardado mi código", codeMissing: "Este navegador no tiene el código. Crea uno nuevo.", makeCode: "Crear código nuevo", recoverTitle: "Restaurar participante", codeLabel: "Código de recuperación", restore: "Restaurar mi cachorro", localOnly: "Firebase no está configurado. Esta sesión solo se guarda en este dispositivo y no se envía a la base de datos.", saveFailed: "No pudimos guardar la respuesta de hoy. Quédate en esta página e inténtalo de nuevo.", saved: "Respuesta guardada.", customCodeLabel: "Elige tu propio código de recuperación", customCodeHint: "Usa entre 8 y 80 caracteres para que te resulte fácil recordarlo.", customCodeAction: "Guardar mi código", customCodeSaved: "Código de recuperación actualizado.", customCodeInvalid: "Introduce un código de recuperación de 8 a 80 caracteres.", manageCode: "Código de recuperación", databaseNotice: "Prueba del estudio: las respuestas se guardan en la base de datos del estudio." }
 };
 const neutralCopy = {
   en: {
@@ -137,12 +137,18 @@ function ac(key) { return authCopy[language][key]; }
 let pendingRecoveryCode = null;
 let firebaseDataPromise = null;
 function isPostgresTrial() {
-  const host = window.location.hostname;
-  const localNetworkHost = host === "localhost" || host === "127.0.0.1" || /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host);
-  return localNetworkHost && new URLSearchParams(window.location.search).get("backend") === "postgres";
+  return ["http:", "https:"].includes(window.location.protocol)
+    && new URLSearchParams(window.location.search).get("backend") === "postgres";
+}
+function requestedTimeframe() {
+  return new URLSearchParams(window.location.search).get("timeframe")?.toLowerCase() === "short" ? "SHORT" : "LONG";
+}
+if (requestedTimeframe() === "SHORT") {
+  const manifestLink = document.querySelector('link[rel="manifest"]');
+  if (manifestLink) manifestLink.href = "manifest-short.webmanifest";
 }
 function hasFirebaseConfig() { if (isPostgresTrial()) return false; const c = window.PUPPY_FIREBASE_CONFIG; return Boolean(c?.emulatorMode || (c?.apiKey && c?.authDomain && c?.projectId && c?.appId && c?.dataCollectionEnabled === true)); }
-function dataNotice() { const c = window.PUPPY_FIREBASE_CONFIG; if (isPostgresTrial()) return language === "zh" ? "本地试验：记录保存到此电脑的 PostgreSQL 数据库。" : language === "es" ? "Prueba local: las respuestas se guardan en PostgreSQL en este equipo." : "Local trial: responses save to PostgreSQL on this computer."; if (c?.emulatorMode) return ac("emulator"); if (!hasFirebaseConfig()) return ac("localOnly"); return ""; }
+function dataNotice() { const c = window.PUPPY_FIREBASE_CONFIG; if (isPostgresTrial()) return ac("databaseNotice"); if (c?.emulatorMode) return ac("emulator"); if (!hasFirebaseConfig()) return ac("localOnly"); return ""; }
 async function postgresRequest(path, body) {
   const headers = { "Content-Type": "application/json" };
   if (state?.participantToken) headers.Authorization = `Bearer ${state.participantToken}`;
@@ -187,7 +193,9 @@ function studyDayLengthMinutes() {
   return Number.isInteger(minutes) && minutes > 0 ? minutes : DEFAULT_STUDY_DAY_MINUTES;
 }
 function isAcceleratedSchedule() { return state?.postgresParticipant && studyDayLengthMinutes() < DEFAULT_STUDY_DAY_MINUTES; }
+function isSelfPacedSchedule() { return state?.postgresParticipant && state.timeframe === "SHORT"; }
 function rawStudyDay() {
+  if (isSelfPacedSchedule()) return Math.max(1, Number(state.currentStudyDay) || 1);
   if (isAcceleratedSchedule() && state?.enrolledAt) {
     const enrolledAt = new Date(state.enrolledAt);
     if (!Number.isNaN(enrolledAt.getTime())) return Math.max(1, Math.floor((Date.now() - enrolledAt.getTime()) / (studyDayLengthMinutes() * 60000)) + 1);
@@ -207,6 +215,17 @@ function nextVisitText(kind, vars = {}) {
     if (kind === "lockedTitle") return t("todayDone", vars);
     if (kind === "lockedBody") return t("idleText", vars);
     if (kind === "done") return t("done");
+    return "";
+  }
+  if (isSelfPacedSchedule()) {
+    if (kind === "complete") return language === "zh"
+      ? `谢谢你陪伴${vars.name}。完成后可以立即开始下一个研究日。`
+      : language === "es"
+        ? `Gracias por pasar tiempo con ${vars.name}. Puedes empezar el siguiente día del estudio al terminar.`
+        : `Thanks for spending time with ${vars.name}. You can start the next study day as soon as you finish.`;
+    if (kind === "lockedTitle") return language === "zh" ? "今天的互动已完成！" : language === "es" ? "¡Terminaste la visita de hoy!" : "Today’s visit is complete!";
+    if (kind === "lockedBody") return language === "zh" ? "完成后即可继续下一个研究日。" : language === "es" ? "Puedes continuar con el siguiente día del estudio al terminar." : "You can continue to the next study day when you finish.";
+    if (kind === "done") return language === "zh" ? "继续下一个研究日" : language === "es" ? "Continuar al siguiente día" : "Continue to next day";
     return "";
   }
   const minutes = studyDayLengthMinutes();
@@ -230,6 +249,11 @@ function nextVisitText(kind, vars = {}) {
 }
 function scheduleNotice() {
   if (!isAcceleratedSchedule()) return "";
+  if (isSelfPacedSchedule()) return language === "zh"
+    ? "短时程测试：完成当天互动后即可立即进入下一天。"
+    : language === "es"
+      ? "Prueba de duración corta: al terminar la visita puedes continuar de inmediato al siguiente día."
+      : "Short timeframe: finish today’s visit to continue immediately to the next day.";
   const minutes = studyDayLengthMinutes();
   if (language === "zh") return `快速测试模式：每 ${minutes} 分钟算作一个研究日。`;
   if (language === "es") return `Modo de prueba rápida: cada ${minutes} minutos cuenta como un día del estudio.`;
@@ -322,9 +346,9 @@ function renderOnboarding() {
     const button = e.currentTarget.querySelector("button[type=submit]"); button.disabled = true;
     try {
       if (isPostgresTrial()) {
-        const profile = await postgresRequest("participants", { puppyName: name });
+        const profile = await postgresRequest("participants", { puppyName: name, timeframe: requestedTimeframe() });
         const profileStudyDayMinutes = profile.studyDayMinutes || DEFAULT_STUDY_DAY_MINUTES;
-        state = { participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: profile.recoveryCode ? "recovery-setup" : "environment-intro", environmentIntroSeen: false, completedToday: profile.completedToday, completedDate: profile.completedToday ? (profileStudyDayMinutes < DEFAULT_STUDY_DAY_MINUTES ? `block-${profile.completedStudyDay}` : `date-${todayKey()}`) : null, completedStudyDay: profile.completedStudyDay, enrolledDate: profile.enrolledDate || todayKey(), enrolledAt: profile.enrolledAt || null, studyDayMinutes: profileStudyDayMinutes, interactions: { fed: false, played: false }, localOnly: true };
+        state = { participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, timeframe: profile.timeframe || "LONG", currentStudyDay: profile.currentStudyDay || 1, assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: profile.recoveryCode ? "recovery-setup" : "environment-intro", environmentIntroSeen: false, completedToday: profile.completedToday, completedDate: profile.completedToday ? (profileStudyDayMinutes < DEFAULT_STUDY_DAY_MINUTES ? `block-${profile.completedStudyDay}` : `date-${todayKey()}`) : null, completedStudyDay: profile.completedStudyDay, enrolledDate: profile.enrolledDate || todayKey(), enrolledAt: profile.enrolledAt || null, studyDayMinutes: profileStudyDayMinutes, interactions: { fed: false, played: false }, localOnly: true };
         pendingRecoveryCode = profile.recoveryCode;
       } else if (hasFirebaseConfig()) {
         const profile = await (await firebaseData()).enrollParticipant(name);
@@ -489,9 +513,9 @@ function renderComplete() {
           },
           requestId: state.requestId
         });
-        showToast(language === "zh" ? "试验记录已保存到本地数据库。" : language === "es" ? "Respuesta guardada en la base de datos local." : "Trial response saved to the local database.");
+        showToast(ac("saved"));
         if (result.autoAdvanced && result.nextStudyDay <= 24) {
-          state.enrolledAt = result.enrolledAt || state.enrolledAt;
+          state.currentStudyDay = result.nextStudyDay;
           state.completedToday = false;
           state.completedStudyDay = null;
           state.completedDate = null;
@@ -552,7 +576,7 @@ function renderRecoverySetup() {
 function renderRecoveryLogin() {
   app.innerHTML = `<section class="recovery-screen"><p class="eyebrow">${t("title")}</p><h1>${ac("recoverTitle")}</h1><form id="recovery-form"><label for="recovery-code">${ac("codeLabel")}</label><input id="recovery-code" autocomplete="one-time-code" required /><button class="button button-primary button-wide" type="submit">${ac("restore")}</button></form><button id="back-to-welcome" class="text-button">${t("begin")}</button></section>`;
   document.querySelector("#back-to-welcome").addEventListener("click", renderOnboarding);
-  document.querySelector("#recovery-form").addEventListener("submit", async e => { e.preventDefault(); const button = e.currentTarget.querySelector("button"); button.disabled = true; try {     if (isPostgresTrial()) { const response = await fetch("/api/participants/recover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recoveryCode: document.querySelector("#recovery-code").value }) }); const profile = await response.json(); if (!response.ok) throw new Error(profile.error || ac("saveFailed"));   state = { participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, puppyName: profile.puppyName, language, screen: "recovery-setup", environmentIntroSeen: true, completedToday: profile.completedToday, completedDate: profile.completedToday ? (profile.studyDayMinutes < DEFAULT_STUDY_DAY_MINUTES ? `block-${profile.completedStudyDay}` : `date-${todayKey()}`) : null, completedStudyDay: profile.completedStudyDay, enrolledDate: profile.enrolledDate, enrolledAt: profile.enrolledAt || null, studyDayMinutes: profile.studyDayMinutes || DEFAULT_STUDY_DAY_MINUTES, interactions: { fed: false, played: false } }; pendingRecoveryCode = profile.recoveryCode; } else { const profile = await (await firebaseData()).recoverParticipant(document.querySelector("#recovery-code").value); const completedToday = profile.lastSubmittedDate === todayKey(); state = { participantId: profile.uid, firebaseUid: profile.uid, puppyName: profile.puppyName, language, screen: "home", environmentIntroSeen: true, completedToday, completedDate: completedToday ? `date-${todayKey()}` : null, enrolledDate: profile.enrolledOn, interactions: { fed: false, played: false }, nextStudyDay: profile.nextStudyDay }; } saveState(); render(); } catch (error) { showToast(error.message || ac("saveFailed")); button.disabled = false; } });
+  document.querySelector("#recovery-form").addEventListener("submit", async e => { e.preventDefault(); const button = e.currentTarget.querySelector("button"); button.disabled = true; try {     if (isPostgresTrial()) { const response = await fetch("/api/participants/recover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recoveryCode: document.querySelector("#recovery-code").value }) }); const profile = await response.json(); if (!response.ok) throw new Error(profile.error || ac("saveFailed"));     state = { participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, timeframe: profile.timeframe || "LONG", currentStudyDay: profile.currentStudyDay || 1, puppyName: profile.puppyName, language, screen: "recovery-setup", environmentIntroSeen: true, completedToday: profile.completedToday, completedDate: profile.completedToday ? (profile.studyDayMinutes < DEFAULT_STUDY_DAY_MINUTES ? `block-${profile.completedStudyDay}` : `date-${todayKey()}`) : null, completedStudyDay: profile.completedStudyDay, enrolledDate: profile.enrolledDate, enrolledAt: profile.enrolledAt || null, studyDayMinutes: profile.studyDayMinutes || DEFAULT_STUDY_DAY_MINUTES, interactions: { fed: false, played: false } }; pendingRecoveryCode = profile.recoveryCode; } else { const profile = await (await firebaseData()).recoverParticipant(document.querySelector("#recovery-code").value); const completedToday = profile.lastSubmittedDate === todayKey(); state = { participantId: profile.uid, firebaseUid: profile.uid, puppyName: profile.puppyName, language, screen: "home", environmentIntroSeen: true, completedToday, completedDate: completedToday ? `date-${todayKey()}` : null, enrolledDate: profile.enrolledOn, interactions: { fed: false, played: false }, nextStudyDay: profile.nextStudyDay }; } saveState(); render(); } catch (error) { showToast(error.message || ac("saveFailed")); button.disabled = false; } });
 }
 async function resumeFirebaseParticipant() {
   if (isPostgresTrial()) return;
@@ -576,10 +600,11 @@ async function resumePostgresParticipant() {
   try {
     const profile = await postgresRequest("participants", {
       ...(state.localOnly && state.participantId ? { participantId: state.participantId } : {}),
-      puppyName: state.puppyName
+      puppyName: state.puppyName,
+      timeframe: state.localOnly ? requestedTimeframe() : state.timeframe || "LONG"
     });
     const profileStudyDayMinutes = profile.studyDayMinutes || DEFAULT_STUDY_DAY_MINUTES;
-    state = { ...state, participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: profile.recoveryCode ? "recovery-setup" : "home", environmentIntroSeen: true, enrolledDate: profile.enrolledDate || todayKey(), enrolledAt: profile.enrolledAt || null, studyDayMinutes: profileStudyDayMinutes, completedToday: profile.completedToday, completedDate: profile.completedToday ? (profileStudyDayMinutes < DEFAULT_STUDY_DAY_MINUTES ? `block-${profile.completedStudyDay}` : `date-${todayKey()}`) : null, completedStudyDay: profile.completedStudyDay, prediction: null, predictedEScore: null, actualMood: null, actualEScore: null, surveyAnswers: null, currentTrial: null, requestId: null, interactions: { fed: false, played: false }, localOnly: true };
+    state = { ...state, participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, timeframe: profile.timeframe || "LONG", currentStudyDay: profile.currentStudyDay || 1, assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: profile.recoveryCode ? "recovery-setup" : "home", environmentIntroSeen: true, enrolledDate: profile.enrolledDate || todayKey(), enrolledAt: profile.enrolledAt || null, studyDayMinutes: profileStudyDayMinutes, completedToday: profile.completedToday, completedDate: profile.completedToday ? (profileStudyDayMinutes < DEFAULT_STUDY_DAY_MINUTES ? `block-${profile.completedStudyDay}` : `date-${todayKey()}`) : null, completedStudyDay: profile.completedStudyDay, prediction: null, predictedEScore: null, actualMood: null, actualEScore: null, surveyAnswers: null, currentTrial: null, requestId: null, interactions: { fed: false, played: false }, localOnly: true };
     pendingRecoveryCode = profile.recoveryCode;
     saveState(); render();
   } catch (error) {

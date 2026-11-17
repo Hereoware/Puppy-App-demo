@@ -235,7 +235,8 @@ This stops PostgreSQL but keeps the named volume and local test data. The next t
 | `http://localhost:3001/?backend=postgres` | Local participant flow served by the backend | Yes, local database |
 | `http://localhost:3001/admin` | Local researcher login and trial-order upload | Yes, local database |
 | `https://hereoware.github.io/Puppy-App-demo/` | Public static GitHub Pages preview | No |
-| `https://YOUR-SERVICE.onrender.com/?backend=postgres` | Cloud staging participant flow, after Render is configured | Yes, cloud test database |
+| `https://YOUR-SERVICE.onrender.com/?backend=postgres` | Cloud Long-timeframe participant flow | Yes, cloud test database |
+| `https://YOUR-SERVICE.onrender.com/?backend=postgres&timeframe=short` | Cloud Short-timeframe (self-paced) participant flow | Yes, cloud test database |
 
 GitHub Pages publishes static files only. It does not run Node.js or PostgreSQL. Pushing code to GitHub does not by itself create a cloud backend/database.
 
@@ -291,10 +292,10 @@ npm test
 
 Use this flow when participants are on another computer or phone over the internet. Replace `YOUR-SERVICE` with the Render service name shown in your Render dashboard.
 
-1. Commit and push the latest project changes to the GitHub branch connected to Render. Wait until the Render service reports **Live**. Check deploy logs for `prisma migrate deploy` completing successfully; this applies new database migrations such as the trial-order category column.
+1. Commit and push the latest project changes to the GitHub branch connected to Render. Wait until the Render service reports **Live**. Check deploy logs for `prisma migrate deploy` completing successfully; this applies new database migrations such as participant timeframe.
 2. Check `https://YOUR-SERVICE.onrender.com/api/health`. It should return `{"ok":true,"database":"connected"}`.
 3. Open `https://YOUR-SERVICE.onrender.com/admin` and sign in with Render's `ADMIN_PASSWORD`. Upload and activate the AllVersions CSV **in this hosted admin page**. A CSV uploaded to `localhost:3001/admin` is stored in the local database and is not copied to Neon.
-4. Give participants this URL: `https://YOUR-SERVICE.onrender.com/?backend=postgres`. It must be the Render URL with `?backend=postgres`; `localhost` is only reachable from your own computer, and GitHub Pages is a static preview that does not submit to this PostgreSQL backend.
-5. In the same hosted `/admin` page, refresh **参与者注册** to see registrations (ID, puppy name, enrollment time, status, assigned version, and number of submitted days). Refresh **参与者回答** to see each saved daily response. Enrollment appears when a participant record is created; an answer appears only after the participant finishes the daily flow, submits it, and the page confirms it was saved.
+4. Choose the participant link: `https://YOUR-SERVICE.onrender.com/?backend=postgres` for Long (one calendar day at a time), or `https://YOUR-SERVICE.onrender.com/?backend=postgres&timeframe=short` for Short (self-paced; the next day opens after the current visit is submitted). Both use the same Render service and database. `localhost` is only reachable from your own computer, and GitHub Pages is a static preview that does not submit to this PostgreSQL backend.
+5. In the same hosted `/admin` page, use the **Study timeframe** filter to view the Short or Long cohort. Participant enrollment and response exports include this field; HIT-T/HIT-A/LIT group assignment remains separate. Enrollment appears when a participant record is created; an answer appears only after the participant finishes the daily flow, submits it, and the page confirms it was saved.
 
 Prisma Studio at `localhost:49152` reads the database in the local `backend/.env`; it will not show Neon rows unless deliberately configured with the cloud connection. Keep database credentials private. Render Free can sleep after 15 minutes without a request, so a participant's first request may wait for the service to wake.

@@ -1,0 +1,27 @@
+{
+  "id": "./?backend=postgres&timeframe=short",
+  "name": "Puppy Day · Short Study",
+  "short_name": "Puppy Day",
+  "description": "Complete the study days at your own pace",
+  "lang": "en",
+  "start_url": "./?backend=postgres&timeframe=short",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f6fb",
+  "theme_color": "#f4f6fb",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

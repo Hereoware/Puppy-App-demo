@@ -32,7 +32,7 @@ npm run dev
 
 This starts the Node.js backend. It serves the app and API on port 3001 and connects to the local database using `backend/.env`. Keep this terminal open while testing.
 
-This repo is now configured for a compressed local schedule: `backend/.env` sets `PUPPY_STUDY_DAY_MINUTES=60`, so each study day unlocks one hour after enrollment instead of waiting for the next calendar day. Change it back to `1440` if you want the normal one-day cadence.
+The schedule is selected per participant, not by a shared server setting. Long-timeframe participants advance one calendar day at a time. Short-timeframe participants can continue to the next study day immediately after finishing the current day.
 
 Check the connection at:
 
@@ -65,10 +65,10 @@ The local server applies pending database migrations before it starts. Render ap
 Open this in a private/incognito browser window:
 
 ```text
-http://localhost:3001/?backend=postgres
+http://localhost:3001/?backend=postgres&timeframe=short
 ```
 
-Create a new test participant and save the recovery code shown during enrollment. Complete the visit and confirm the completion message appears.
+Use `timeframe=short` for the self-paced short test. Omit it (or use `timeframe=long`) for the long test. Create a new test participant and save the recovery code shown during enrollment. Complete the visit and confirm the response was saved; short-timeframe participants will immediately continue to the next study day.
 
 The server locks a participant's completed study day until the next study window opens. With the current local quick-test setting, that means one hour per study day. To repeat a Day 1 visit immediately, create a new test participant in a fresh private window.
 
@@ -114,23 +114,23 @@ Continue when the result reports `"database":"connected"`.
 
 ### 3. Prepare the cloud trial order
 
-Open `<YOUR-REAL-RENDER-URL>/admin` and sign in with the Render `ADMIN_PASSWORD`. Confirm that a trial-order set is active. If none is listed, upload the AllVersions CSV here and click **楠岃瘉骞跺惎鐢?*. Uploading the CSV to `localhost:3001/admin` only changes the local database; it does not upload the file to Neon.
+Open `<YOUR-REAL-RENDER-URL>/admin` and sign in with the Render `ADMIN_PASSWORD`. Confirm that a trial-order set is active. If none is listed, upload the AllVersions CSV here and click **Validate and activate**. Uploading the CSV to `localhost:3001/admin` only changes the local database; it does not upload the file to Neon.
 
 ### 4. Run a cloud participant test
 
 Open this URL in a private/incognito window, using the same real Render base URL:
 
 ```text
-<YOUR-REAL-RENDER-URL>/?backend=postgres
+<YOUR-REAL-RENDER-URL>/?backend=postgres&timeframe=short
 ```
 
-Create a new synthetic test participant, save the recovery code, complete the visit, and wait for the app to confirm the response was saved. A participant enrolled before a trial order was activated is not automatically assigned one; create a fresh test participant after activation.
+Use the URL above for the self-paced Short timeframe; use `<YOUR-REAL-RENDER-URL>/?backend=postgres` for Long, which advances one calendar day at a time. Both links use the same Render service, Neon database, and researcher admin. Timeframe is stored on the participant and cannot be changed by opening the other link later. Create a new synthetic test participant, save the recovery code, and finish the visit. Short participants can continue immediately; Long participants return on the next calendar day. A participant enrolled before a trial order was activated is not automatically assigned one; create a fresh test participant after activation.
 
-To install the cloud trial on a phone's Home Screen, first open the participant URL above (including `?backend=postgres`) after the latest deployment is Live, then use the browser's **Add to Home Screen** action. The web app manifest starts the installed app in PostgreSQL mode. If the app was installed before this update, remove the old Home Screen shortcut and add it again from the updated participant URL so the phone picks up the corrected launch address and service-worker cache.
+To install the cloud trial on a phone's Home Screen, first open the participant URL after the latest deployment is Live, then use the browser's **Add to Home Screen** action. The participant timeframe is saved with the participant record and remains the same when restored with its recovery code.
 
 ### 5. Review registrations and answers
 
-Return to `<YOUR-REAL-RENDER-URL>/admin` and sign in. Refresh **鍙備笌鑰呮敞鍐?* to see participant ID, puppy name, enrollment time, status, assigned version, and submitted-day count. Refresh **鍙備笌鑰呭洖绛?* to see daily answers or export them as CSV. Registration appears when the participant record is created; a daily answer appears only after a successful end-of-day submission.
+Return to `<YOUR-REAL-RENDER-URL>/admin` and sign in. Use the **Study timeframe** filter to view Short or Long participants and their responses; HIT-T/HIT-A/LIT treatment groups remain separate. The participant list and response CSV include timeframe. Registration appears when the participant record is created; a daily answer appears only after a successful end-of-day submission.
 
 These records are stored in the Neon cloud database, not the local PostgreSQL container. Local Prisma Studio usually reads the database in `backend/.env`; it will not show cloud records unless explicitly configured for Neon. A free Render service may take about a minute to wake after inactivity. Use synthetic test data in staging.
 

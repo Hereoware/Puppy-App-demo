@@ -19,6 +19,11 @@ enum StudyGroup {
   LIT
 }
 
+enum StudyTimeframe {
+  SHORT
+  LONG
+}
+
 enum MoodPrediction {
   HAPPY
   SAD
@@ -30,6 +35,7 @@ model Participant {
   enrolledAt         DateTime           @default(now()) @db.Timestamptz(3)
   timeZone           String             @default("America/New_York")
   status             ParticipantStatus  @default(ACTIVE)
+  timeframe          StudyTimeframe     @default(LONG)
   recoveryCodeDigest String?            @unique
   assignedGroup      StudyGroup?
   assignedVersionId  String?
@@ -37,6 +43,7 @@ model Participant {
   responses          DailyResponse[]
 
   @@index([assignedGroup])
+  @@index([timeframe, assignedGroup])
   @@index([assignedVersionId])
 }
 

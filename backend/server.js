@@ -9,7 +9,7 @@ import { saveDailyResponse } from "./lib/daily-response-store.js";
 import { prisma } from "./lib/prisma.js";
 import { importedTrialSchema, responseSchema } from "./lib/response-schema.js";
 import { chooseBalancedStudyGroup, STUDY_GROUPS } from "./lib/study-groups.js";
-import { DEFAULT_STUDY_DAY_MINUTES, dateInZone, studyScheduleForParticipant } from "./lib/study-schedule.js";
+import { dateInZone, studyScheduleForParticipant } from "./lib/study-schedule.js";
 import { isSurveyDay, trialChoiceOptions } from "../study-days.mjs";
 
 const backendDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -33,7 +33,7 @@ app.use(express.json({ limit: "2mb" }));
 // Serve only the app's public files. Do not expose backend source, .env, or node_modules.
 app.get("/", (_request, response) => response.sendFile(path.join(projectRoot, "index.html")));
 app.get("/admin", (_request, response) => response.sendFile(path.join(projectRoot, "admin.html")));
-for (const filename of ["app.js", "admin.js", "trial-order-parser.mjs", "study-days.mjs", "styles.css", "firebase-config.js", "firebase-data.js", "manifest.webmanifest", "service-worker.js"]) {
+for (const filename of ["app.js", "admin.js", "trial-order-parser.mjs", "study-days.mjs", "styles.css", "firebase-config.js", "firebase-data.js", "manifest.webmanifest", "manifest-short.webmanifest", "service-worker.js"]) {
   app.get(`/${filename}`, (_request, response) => response.sendFile(path.join(projectRoot, filename)));
 }
 app.use("/icons", express.static(path.join(projectRoot, "icons"), { dotfiles: "deny", index: false }));
@@ -46,7 +46,8 @@ app.use("/api", (_request, response, next) => {
 
 const participantSchema = z.object({
   participantId: z.string().min(1).max(40).optional(),
-  puppyName: z.string().trim().min(1).max(24)
+  puppyName: z.string().trim().min(1).max(24),
+  timeframe: z.enum(["SHORT", "LONG"]).optional()
 });
 const recoverySchema = z.object({ recoveryCode: z.string().trim().min(8).max(80) });
 const recoveryCodeUpdateSchema = z.object({ participantId: z.string().min(1).max(40), recoveryCode: z.string().trim().min(8).max(80).optional() });
@@ -125,10 +126,11 @@ function newRecoveryCode() {
 function dateOnly(value) {
   return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
 }
-async function advanceAcceleratedSchedule(participant, currentDay, schedule) {
-  const advancedEnrollment = new Date(Date.now() - currentDay * schedule.studyDayMinutes * 60000);
-  await prisma.participant.update({ where: { id: participant.id }, data: { enrolledAt: advancedEnrollment } });
-  return advancedEnrollment;
+async function participantStudySchedule(participant) {
+  const completedStudyDays = participant.timeframe === "SHORT"
+    ? await prisma.dailyResponse.count({ where: { participantId: participant.id } })
+    : 0;
+  return studyScheduleForParticipant(participant, { completedStudyDays });
 }
 
 app.post("/api/admin/login", limitAdminLogin, (request, response) => {
@@ -234,13 +236,13 @@ async function activeTrialSetsByGroup(client = prisma) {
   }
   return byGroup;
 }
-async function chooseBalancedAssignment(client = prisma) {
+async function chooseBalancedAssignment(timeframe = "LONG", client = prisma) {
   const activeSets = await activeTrialSetsByGroup(client);
   if (!activeSets.size) return null;
   const counts = await client.participant.groupBy({
     by: ["assignedGroup"],
     _count: { _all: true },
-    where: { assignedGroup: { in: [...activeSets.keys()] } }
+    where: { timeframe, assignedGroup: { in: [...activeSets.keys()] } }
   });
   const participantCounts = new Map(counts.map((item) => [item.assignedGroup, item._count._all]));
   const assignedGroup = chooseBalancedStudyGroup(new Set(activeSets.keys()), participantCounts, randomInt);
@@ -262,7 +264,7 @@ async function hydrateParticipantAssignment(participant, client = prisma) {
     }
     return participant;
   }
-  const assignment = await chooseBalancedAssignment(client);
+  const assignment = await chooseBalancedAssignment(participant.timeframe || "LONG", client);
   if (!assignment) return null;
   return client.participant.update({
     where: { id: participant.id },
@@ -284,8 +286,12 @@ async function readParticipantAssignment(participant) {
 
 app.post("/api/participants", limitEnrollment, async (request, response) => {
   const parsed = participantSchema.safeParse(request.body);
-  if (!parsed.success) return response.status(400).json({ error: "Enter a puppy name between 1 and 24 characters." });
+  if (!parsed.success) {
+    const invalidTimeframe = parsed.error.issues.some((issue) => issue.path[0] === "timeframe");
+    return response.status(400).json({ error: invalidTimeframe ? "Choose either the Short or Long study timeframe." : "Enter a puppy name between 1 and 24 characters." });
+  }
   const requestedId = parsed.data.participantId;
+  const timeframe = parsed.data.timeframe || (request.query.timeframe === "short" ? "SHORT" : "LONG");
   const session = bearerSession(request);
   if (requestedId && !session && !localTrialCaptureEnabled) return response.status(401).json({ error: "Restore this participant with its recovery code." });
   if (requestedId && session && session.role !== "participant") return response.status(403).json({ error: "A participant session is required to resume this account." });
@@ -300,23 +306,25 @@ app.post("/api/participants", limitEnrollment, async (request, response) => {
     participant = await prisma.participant.findUnique({ where: { id: requestedId } });
     if (participant) participant = await prisma.participant.update({ where: { id: requestedId }, data: { puppyName: parsed.data.puppyName } });
     else {
-      const assignment = await chooseBalancedAssignment();
+      const assignment = await chooseBalancedAssignment(timeframe);
       if (!assignment) return response.status(409).json({ error: "No active study-group trial order is available. Import one from the researcher page first." });
       participant = await prisma.participant.create({
         data: {
           id: requestedId,
           puppyName: parsed.data.puppyName,
+          timeframe,
           assignedGroup: assignment.assignedGroup,
           assignedVersionId: assignment.assignedVersionId
         }
       });
     }
   } else {
-    const assignment = await chooseBalancedAssignment();
+    const assignment = await chooseBalancedAssignment(timeframe);
     if (!assignment) return response.status(409).json({ error: "No active study-group trial order is available. Import one from the researcher page first." });
     participant = await prisma.participant.create({
       data: {
         puppyName: parsed.data.puppyName,
+        timeframe,
         assignedGroup: assignment.assignedGroup,
         assignedVersionId: assignment.assignedVersionId
       }
@@ -331,7 +339,7 @@ app.post("/api/participants", limitEnrollment, async (request, response) => {
     participant = await prisma.participant.update({ where: { id: participant.id }, data: { recoveryCodeDigest: recoveryDigest(recoveryCode) } });
   }
   const assignment = await readParticipantAssignment(participant);
-  const schedule = studyScheduleForParticipant(participant);
+  const schedule = await participantStudySchedule(participant);
   const savedToday = schedule.currentStudyDay <= 24
     ? await prisma.dailyResponse.findUnique({
       where: { participantId_studyDay: { participantId: participant.id, studyDay: schedule.currentStudyDay } },
@@ -342,11 +350,13 @@ app.post("/api/participants", limitEnrollment, async (request, response) => {
   response.status(201).json({
     participantId: participant.id,
     puppyName: participant.puppyName,
+    timeframe: participant.timeframe || "LONG",
     assignedGroup: assignment.assignedGroup,
     assignedVersion: assignment.assignedVersion,
     enrolledDate: dateInZone(participant.enrolledAt, participant.timeZone),
     enrolledAt: participant.enrolledAt.toISOString(),
     studyDayMinutes: schedule.studyDayMinutes,
+    currentStudyDay: schedule.currentStudyDay,
     completedToday,
     completedDate: completedToday ? schedule.currentStudyDate : null,
     completedStudyDay: completedToday ? schedule.currentStudyDay : null,
@@ -363,13 +373,13 @@ app.post("/api/participants/recover", limitRecovery, async (request, response) =
   const recoveryCode = newRecoveryCode();
   const rotated = await prisma.participant.updateMany({ where: { id: participant.id, recoveryCodeDigest: recoveryDigest(parsed.data.recoveryCode) }, data: { recoveryCodeDigest: recoveryDigest(recoveryCode) } });
   if (rotated.count !== 1) return response.status(404).json({ error: "Recovery code not recognized." });
-  const schedule = studyScheduleForParticipant(participant);
+  const schedule = await participantStudySchedule(participant);
   const today = schedule.currentStudyDate;
   const currentDay = schedule.currentStudyDay;
   const savedToday = currentDay <= 24 ? await prisma.dailyResponse.findUnique({ where: { participantId_studyDay: { participantId: participant.id, studyDay: currentDay } }, select: { studyDate: true } }) : null;
   const completedToday = Boolean(savedToday && dateOnly(savedToday.studyDate) === today);
   const assignment = await readParticipantAssignment(participant);
-  response.json({ participantId: participant.id, puppyName: participant.puppyName, assignedGroup: assignment.assignedGroup, assignedVersion: assignment.assignedVersion, enrolledDate: dateInZone(participant.enrolledAt, participant.timeZone), enrolledAt: participant.enrolledAt.toISOString(), studyDayMinutes: schedule.studyDayMinutes, token: issueSession("participant", participant.id), recoveryCode, completedToday, completedDate: completedToday ? today : null, completedStudyDay: completedToday ? currentDay : null });
+  response.json({ participantId: participant.id, puppyName: participant.puppyName, timeframe: participant.timeframe || "LONG", assignedGroup: assignment.assignedGroup, assignedVersion: assignment.assignedVersion, enrolledDate: dateInZone(participant.enrolledAt, participant.timeZone), enrolledAt: participant.enrolledAt.toISOString(), studyDayMinutes: schedule.studyDayMinutes, currentStudyDay: schedule.currentStudyDay, token: issueSession("participant", participant.id), recoveryCode, completedToday, completedDate: completedToday ? today : null, completedStudyDay: completedToday ? currentDay : null });
 });
 
 app.post("/api/participants/recovery-code", async (request, response) => {
@@ -391,7 +401,7 @@ app.get("/api/participants/:participantId/trials/:studyDay", async (request, res
     include: { assignedVersion: true }
   });
   if (!participant || participant.status !== "ACTIVE") return response.status(404).json({ error: "Participant was not found." });
-  const schedule = studyScheduleForParticipant(participant);
+  const schedule = await participantStudySchedule(participant);
   const currentDay = schedule.currentStudyDay;
   if (day !== currentDay) return response.status(409).json({ error: "Only the current study day is available." });
   const existing = await prisma.dailyResponse.findUnique({ where: { participantId_studyDay: { participantId: participant.id, studyDay: day } } });
@@ -425,21 +435,13 @@ app.post("/api/responses", async (request, response) => {
   if (!requireParticipant(request, response, data.participantId)) return;
   const participant = await prisma.participant.findUnique({ where: { id: data.participantId } });
   if (!participant || participant.status !== "ACTIVE") return response.status(404).json({ error: "Participant was not found." });
-  const schedule = studyScheduleForParticipant(participant);
+  const schedule = await participantStudySchedule(participant);
   const previousRequest = await prisma.dailyResponse.findUnique({
     where: { participantId_requestId: { participantId: data.participantId, requestId: data.requestId } }
   });
   if (previousRequest) {
-    if (schedule.studyDayMinutes < DEFAULT_STUDY_DAY_MINUTES && previousRequest.studyDay < 24) {
-      let nextStudyDay = schedule.currentStudyDay;
-      if (nextStudyDay === previousRequest.studyDay) {
-        const enrolledAt = await advanceAcceleratedSchedule(participant, previousRequest.studyDay, schedule);
-        nextStudyDay = previousRequest.studyDay + 1;
-        return response.json({ saved: true, alreadySaved: true, autoAdvanced: true, nextStudyDay, enrolledAt: enrolledAt.toISOString() });
-      }
-      if (nextStudyDay > previousRequest.studyDay) {
-        return response.json({ saved: true, alreadySaved: true, autoAdvanced: true, nextStudyDay, enrolledAt: participant.enrolledAt.toISOString() });
-      }
+    if (schedule.timeframe === "SHORT" && previousRequest.studyDay < 24) {
+      return response.json({ saved: true, alreadySaved: true, autoAdvanced: true, nextStudyDay: schedule.currentStudyDay });
     }
     return response.json({ saved: true, alreadySaved: true });
   }
@@ -499,10 +501,9 @@ app.post("/api/responses", async (request, response) => {
   if (saveResult.alreadySaved) return response.json({ saved: true, alreadySaved: true });
   if (saveResult.conflict) return response.status(409).json({ error: "A response already exists for this study day." });
 
-  const shouldAutoAdvance = schedule.studyDayMinutes < DEFAULT_STUDY_DAY_MINUTES && currentDay < 24;
+  const shouldAutoAdvance = schedule.timeframe === "SHORT" && currentDay < 24;
   if (shouldAutoAdvance) {
-    const advancedEnrollment = await advanceAcceleratedSchedule(participant, currentDay, schedule);
-    return response.status(201).json({ saved: true, alreadySaved: false, autoAdvanced: true, nextStudyDay: currentDay + 1, enrolledAt: advancedEnrollment.toISOString() });
+    return response.status(201).json({ saved: true, alreadySaved: false, autoAdvanced: true, nextStudyDay: currentDay + 1 });
   }
 
   response.status(201).json({ saved: true, alreadySaved: false, autoAdvanced: false });
@@ -519,6 +520,7 @@ app.get("/api/responses", requireAdmin, async (_request, response) => {
       participant: {
         select: {
           puppyName: true,
+          timeframe: true,
           assignedGroup: true,
           assignedVersion: { select: { code: true, set: { select: { assignmentGroup: true } } } }
         }
@@ -536,6 +538,7 @@ app.get("/api/participants", requireAdmin, async (_request, response) => {
       puppyName: true,
       enrolledAt: true,
       status: true,
+      timeframe: true,
       assignedGroup: true,
       assignedVersion: { select: { code: true, set: { select: { assignmentGroup: true } } } },
       _count: { select: { responses: true } }

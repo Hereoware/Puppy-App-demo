@@ -27,12 +27,21 @@ export function currentStudyDay(enrolledAt, { now = new Date(), timeZone = DEFAU
   return Math.max(1, Math.floor((now.getTime() - new Date(enrolledAt).getTime()) / (minutes * 60000)) + 1);
 }
 
-export function studyScheduleForParticipant(participant, { now = new Date(), env = process.env } = {}) {
+export function studyScheduleForParticipant(participant, { now = new Date(), env = process.env, completedStudyDays = 0 } = {}) {
   const timeZone = participant.timeZone || DEFAULT_TIME_ZONE;
-  const studyDayMinutes = parseStudyDayMinutes(env.PUPPY_STUDY_DAY_MINUTES);
+  const legacyMinutes = parseStudyDayMinutes(env.PUPPY_STUDY_DAY_MINUTES);
+  const timeframe = participant.timeframe || (legacyMinutes < DEFAULT_STUDY_DAY_MINUTES ? "SHORT" : "LONG");
+  const studyDayMinutes = participant.timeframe === "SHORT"
+    ? 1
+    : participant.timeframe === "LONG"
+      ? DEFAULT_STUDY_DAY_MINUTES
+      : legacyMinutes;
   return {
+    timeframe,
     studyDayMinutes,
-    currentStudyDay: currentStudyDay(participant.enrolledAt, { now, timeZone, studyDayMinutes }),
+    currentStudyDay: participant.timeframe === "SHORT"
+      ? Math.max(1, completedStudyDays + 1)
+      : currentStudyDay(participant.enrolledAt, { now, timeZone, studyDayMinutes }),
     currentStudyDate: dateInZone(now, timeZone)
   };
 }

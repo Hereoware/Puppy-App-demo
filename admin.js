@@ -21,6 +21,7 @@ const participantsStatus = document.querySelector("#participants-status");
 const participantGroupSummary = document.querySelector("#participants-group-summary");
 const participantsTableBody = document.querySelector("#participants-table-body");
 const refreshParticipantsButton = document.querySelector("#refresh-participants");
+const timeframeFilter = document.querySelector("#timeframe-filter");
 const languageSelect = document.querySelector("#admin-language-select");
 const adminPasswordInput = document.querySelector("#admin-password");
 const ADMIN_TOKEN_KEY = "puppy-admin-session";
@@ -38,7 +39,7 @@ const translations = {
     back: "← Back to Puppy Day",
     eyebrow: "Researcher Tools",
     adminTitle: "Trial Order Admin",
-    adminIntro: "Upload the CSV exported from the <strong>AllVersions</strong> worksheet in Excel. Each version must contain days 1–24; new participants are balanced across active HIT-T, HIT-A, and LIT study groups, then randomly assigned a version within their group.",
+    adminIntro: "Upload the CSV exported from the <strong>AllVersions</strong> worksheet in Excel. Each version must contain days 1–24; new participants are balanced within their Short or Long timeframe across active HIT-T, HIT-A, and LIT groups, then randomly assigned a version within their group.",
     warningTitle: "Research test platform:",
     warningText: "Sign in with the researcher password. Before deployment, complete IRB, data-handling, and access reviews; do not enter real participant data without approval.",
     loginTitle: "Researcher Sign In",
@@ -53,7 +54,11 @@ const translations = {
     uploadHelp: "The CSV must contain the columns: version, day, T, A, E, T_label, A_label. In Excel, choose the AllVersions worksheet and save it as a UTF-8 CSV.",
     importButton: "Validate and activate",
     participantsTitle: "Participant Enrollment",
-    participantsHelp: "Shows participants created in this backend. The responses table only shows rows after a participant submits a response for that day.",
+    participantsHelp: "Shows participants created in this backend. Use the timeframe filter to separate Short and Long cohorts. The responses table only shows rows after a participant submits a response for that day.",
+    timeframeFilterLabel: "Study timeframe",
+    timeframeAll: "All timeframes",
+    timeframeShort: "Short (self-paced)",
+    timeframeLong: "Long (one day at a time)",
     refreshParticipants: "Refresh enrollment",
     participantsStatusIdle: "Load enrollment after signing in.",
     responsesTitle: "Participant Responses",
@@ -67,14 +72,17 @@ const translations = {
     orderListLoading: "Reading the local database…",
     noParticipantsLoaded: "No participants loaded yet.",
     noResponsesLoaded: "No responses loaded yet.",
+    noRowsInTimeframe: "No rows match the selected study timeframe.",
     participantsHeadId: "Participant ID",
     participantsHeadName: "Puppy Name",
+    participantsHeadTimeframe: "Study Timeframe",
     participantsHeadEnrolled: "Enrolled At",
     participantsHeadStatus: "Status",
     participantsHeadDays: "Submitted Days",
     participantsHeadVersion: "Assigned Version",
     responsesHeadId: "Participant ID",
     responsesHeadName: "Puppy Name",
+    responsesHeadTimeframe: "Study Timeframe",
     responsesHeadDate: "Date",
     responsesHeadDay: "Day",
     responsesHeadPredMood: "Predicted Mood",
@@ -145,7 +153,7 @@ const translations = {
     back: "← 返回 Puppy Day",
     eyebrow: "研究者工具",
     adminTitle: "Trial Order 管理",
-    adminIntro: "上传 Excel 中 <strong>AllVersions</strong> 工作表另存的 CSV。每个版本必须包含第 1–24 天；新参与者会在启用的 HIT-T、HIT-A 和 LIT 组之间均衡分配，再随机分配该组内的版本。",
+    adminIntro: "上传 Excel 中 <strong>AllVersions</strong> 工作表另存的 CSV。每个版本必须包含第 1–24 天；新参与者会在各自的短/长时程内，均衡分配到启用的 HIT-T、HIT-A 和 LIT 组，再随机分配该组内的版本。",
     warningTitle: "研究测试平台：",
     warningText: "使用研究者密码登录。部署上线前请完成 IRB、数据处理和访问权限审核；不要在未经批准的情况下录入真实参与者数据。",
     loginTitle: "研究者登录",
@@ -160,7 +168,11 @@ const translations = {
     uploadHelp: "CSV 必须包含列：version、day、T、A、E、T_label、A_label。请在 Excel 中选择 AllVersions 工作表，并另存为 UTF-8 CSV。",
     importButton: "验证并启用",
     participantsTitle: "参与者注册",
-    participantsHelp: "显示在此后台创建的参与者。只有参与者提交当天回答后，回答表中才会出现记录。",
+    participantsHelp: "显示在此后台创建的参与者。使用时程筛选区分短时程和长时程。只有参与者提交当天回答后，回答表中才会出现记录。",
+    timeframeFilterLabel: "研究时程",
+    timeframeAll: "所有时程",
+    timeframeShort: "短时程（自定进度）",
+    timeframeLong: "长时程（每天解锁一天）",
     refreshParticipants: "刷新注册",
     participantsStatusIdle: "登录后加载注册信息。",
     responsesTitle: "参与者回答",
@@ -174,14 +186,17 @@ const translations = {
     orderListLoading: "正在读取本地数据库…",
     noParticipantsLoaded: "尚未加载参与者。",
     noResponsesLoaded: "尚未加载回答。",
+    noRowsInTimeframe: "所选研究时程下没有记录。",
     participantsHeadId: "参与者 ID",
     participantsHeadName: "小狗名称",
+    participantsHeadTimeframe: "研究时程",
     participantsHeadEnrolled: "注册时间",
     participantsHeadStatus: "状态",
     participantsHeadDays: "已提交天数",
     participantsHeadVersion: "分配版本",
     responsesHeadId: "参与者 ID",
     responsesHeadName: "小狗名称",
+    responsesHeadTimeframe: "研究时程",
     responsesHeadDate: "日期",
     responsesHeadDay: "天数",
     responsesHeadPredMood: "预测情绪",
@@ -252,7 +267,7 @@ const translations = {
     back: "← Volver a Puppy Day",
     eyebrow: "Herramientas para investigación",
     adminTitle: "Administración de Trial Orders",
-    adminIntro: "Sube el CSV exportado desde la hoja <strong>AllVersions</strong> de Excel. Cada versión debe incluir los días 1–24; los participantes nuevos se distribuyen de forma equilibrada entre los grupos activos HIT-T, HIT-A y LIT, y luego reciben una versión aleatoria de su grupo.",
+    adminIntro: "Sube el CSV exportado desde la hoja <strong>AllVersions</strong> de Excel. Cada versión debe incluir los días 1–24; los participantes nuevos se equilibran dentro de su duración corta o larga entre los grupos activos HIT-T, HIT-A y LIT, y luego reciben una versión aleatoria de su grupo.",
     warningTitle: "Plataforma de prueba de investigación:",
     warningText: "Inicia sesión con la contraseña del investigador. Antes de desplegar, completa las revisiones de IRB, manejo de datos y acceso; no ingreses datos reales de participantes sin aprobación.",
     loginTitle: "Inicio de sesión del investigador",
@@ -267,7 +282,11 @@ const translations = {
     uploadHelp: "El CSV debe incluir las columnas: version, day, T, A, E, T_label, A_label. En Excel, elige la hoja AllVersions y guárdala como CSV UTF-8.",
     importButton: "Validar y activar",
     participantsTitle: "Registro de participantes",
-    participantsHelp: "Muestra los participantes creados en este backend. La tabla de respuestas solo tendrá filas cuando el participante envíe una respuesta para ese día.",
+    participantsHelp: "Muestra los participantes creados en este backend. Usa el filtro de duración para separar las cohortes corta y larga. La tabla de respuestas solo tendrá filas cuando el participante envíe una respuesta para ese día.",
+    timeframeFilterLabel: "Duración del estudio",
+    timeframeAll: "Todas las duraciones",
+    timeframeShort: "Corta (a ritmo propio)",
+    timeframeLong: "Larga (un día a la vez)",
     refreshParticipants: "Actualizar registro",
     participantsStatusIdle: "Carga el registro después de iniciar sesión.",
     responsesTitle: "Respuestas de participantes",
@@ -281,14 +300,17 @@ const translations = {
     orderListLoading: "Leyendo la base de datos local…",
     noParticipantsLoaded: "Todavía no se cargaron participantes.",
     noResponsesLoaded: "Todavía no se cargaron respuestas.",
+    noRowsInTimeframe: "No hay registros para la duración del estudio seleccionada.",
     participantsHeadId: "ID del participante",
     participantsHeadName: "Nombre del cachorro",
+    participantsHeadTimeframe: "Duración del estudio",
     participantsHeadEnrolled: "Fecha de registro",
     participantsHeadStatus: "Estado",
     participantsHeadDays: "Días enviados",
     participantsHeadVersion: "Versión asignada",
     responsesHeadId: "ID del participante",
     responsesHeadName: "Nombre del cachorro",
+    responsesHeadTimeframe: "Duración del estudio",
     responsesHeadDate: "Fecha",
     responsesHeadDay: "Día",
     responsesHeadPredMood: "Ánimo predicho",
@@ -358,6 +380,12 @@ const translations = {
 function t(key, vars = {}) {
   const table = translations[currentLanguage] || translations.en;
   return String(table[key] ?? translations.en[key] ?? key).replace(/\{(\w+)\}/g, (_, token) => vars[token] ?? "");
+}
+function timeframeLabel(timeframe) {
+  return timeframe === "SHORT" ? t("timeframeShort") : t("timeframeLong");
+}
+function visibleRows(rows, getTimeframe) {
+  return rows.filter((row) => !timeframeFilter.value || (getTimeframe(row) || "LONG") === timeframeFilter.value);
 }
 function setText(id, value) {
   const element = document.querySelector(`#${id}`);
@@ -452,6 +480,10 @@ function applyTranslations(previousLanguage = null) {
   setText("import-order", t("importButton"));
   setText("participants-title", t("participantsTitle"));
   setText("participants-help", t("participantsHelp"));
+  setText("timeframe-filter-label", t("timeframeFilterLabel"));
+  setText("timeframe-filter-all", t("timeframeAll"));
+  setText("timeframe-filter-short", t("timeframeShort"));
+  setText("timeframe-filter-long", t("timeframeLong"));
   setText("refresh-participants", t("refreshParticipants"));
   setText("responses-title", t("responsesTitle"));
   setText("responses-help", t("responsesHelp"));
@@ -461,6 +493,7 @@ function applyTranslations(previousLanguage = null) {
   setText("order-category-filter-label", t("orderCategoryFilterLabel"));
   setText("participants-head-id", t("participantsHeadId"));
   setText("participants-head-name", t("participantsHeadName"));
+  setText("participants-head-timeframe", t("participantsHeadTimeframe"));
   setText("participants-head-enrolled", t("participantsHeadEnrolled"));
   setText("participants-head-status", t("participantsHeadStatus"));
   setText("participants-head-days", t("participantsHeadDays"));
@@ -468,6 +501,7 @@ function applyTranslations(previousLanguage = null) {
   setText("participants-head-version", t("participantsHeadVersion"));
   setText("responses-head-id", t("responsesHeadId"));
   setText("responses-head-name", t("responsesHeadName"));
+  setText("responses-head-timeframe", t("responsesHeadTimeframe"));
   setText("responses-head-group", responseGroupHeader());
   setText("responses-head-version", responseVersionHeader());
   setText("responses-head-date", t("responsesHeadDate"));
@@ -498,8 +532,8 @@ function applyTranslations(previousLanguage = null) {
     participantsStatus.textContent = t("participantsStatusIdle");
     responsesStatus.textContent = t("responsesStatusIdle");
   }
-  if (!savedParticipants.length && !sessionStorage.getItem(ADMIN_TOKEN_KEY)) participantsTableBody.innerHTML = `<tr><td colspan="7">${escapeText(t("noParticipantsLoaded"))}</td></tr>`;
-  if (!savedResponses.length && !sessionStorage.getItem(ADMIN_TOKEN_KEY)) responsesTableBody.innerHTML = `<tr><td colspan="20">${escapeText(t("noResponsesLoaded"))}</td></tr>`;
+  if (!savedParticipants.length && !sessionStorage.getItem(ADMIN_TOKEN_KEY)) participantsTableBody.innerHTML = `<tr><td colspan="8">${escapeText(t("noParticipantsLoaded"))}</td></tr>`;
+  if (!savedResponses.length && !sessionStorage.getItem(ADMIN_TOKEN_KEY)) responsesTableBody.innerHTML = `<tr><td colspan="21">${escapeText(t("noResponsesLoaded"))}</td></tr>`;
   refreshCategoryFilter();
   renderOrders();
   renderResponses();
@@ -559,6 +593,11 @@ document.querySelector("#admin-logout").addEventListener("click", () => {
 refreshResponsesButton.addEventListener("click", loadResponses);
 refreshParticipantsButton.addEventListener("click", loadParticipants);
 exportResponsesButton.addEventListener("click", exportResponsesCsv);
+timeframeFilter.addEventListener("change", () => {
+  renderParticipants();
+  renderResponses();
+  exportResponsesButton.disabled = visibleRows(savedResponses, (row) => row.participant?.timeframe).length === 0;
+});
 
 fileInput.addEventListener("change", async () => {
   parsedOrder = null;
@@ -697,7 +736,7 @@ async function loadResponses() {
     savedResponses = rows;
     renderResponses();
     responsesStatus.textContent = rows.length ? t("loadedResponses", { count: rows.length }) : t("noSubmittedResponses");
-    exportResponsesButton.disabled = rows.length === 0;
+    exportResponsesButton.disabled = visibleRows(savedResponses, (row) => row.participant?.timeframe).length === 0;
   } catch (error) {
     responsesStatus.textContent = error.message;
     responsesStatus.className = "admin-status is-error";
@@ -727,7 +766,7 @@ async function loadParticipants() {
 }
 
 function renderParticipantGroupSummary() {
-  const counts = savedParticipants.reduce((summary, row) => {
+  const counts = visibleRows(savedParticipants, (row) => row.timeframe).reduce((summary, row) => {
     const group = effectiveAssignedGroup(row);
     if (Object.prototype.hasOwnProperty.call(summary, group)) summary[group] += 1;
     return summary;
@@ -749,13 +788,15 @@ function renderParticipantGroupSummary() {
 
 function renderParticipants() {
   renderParticipantGroupSummary();
-  if (!savedParticipants.length) {
-    participantsTableBody.innerHTML = `<tr><td colspan="7">${escapeText(sessionStorage.getItem(ADMIN_TOKEN_KEY) ? t("noParticipantsInDb") : t("noParticipantsLoaded"))}</td></tr>`;
+  const rows = visibleRows(savedParticipants, (row) => row.timeframe);
+  if (!rows.length) {
+    participantsTableBody.innerHTML = `<tr><td colspan="8">${escapeText(savedParticipants.length ? t("noRowsInTimeframe") : sessionStorage.getItem(ADMIN_TOKEN_KEY) ? t("noParticipantsInDb") : t("noParticipantsLoaded"))}</td></tr>`;
     return;
   }
-  participantsTableBody.innerHTML = savedParticipants.map(row => `<tr>
+  participantsTableBody.innerHTML = rows.map(row => `<tr>
     <td><code>${escapeText(row.id)}</code></td>
     <td>${escapeText(row.puppyName)}</td>
+    <td>${escapeText(timeframeLabel(row.timeframe))}</td>
     <td>${escapeText(new Date(row.enrolledAt).toLocaleString(currentLocale()))}</td>
     <td>${escapeText(statusLabel(row.status))}</td>
     <td>${escapeText(row.responseCount)}</td>
@@ -765,13 +806,15 @@ function renderParticipants() {
 }
 
 function renderResponses() {
-  if (!savedResponses.length) {
-    responsesTableBody.innerHTML = `<tr><td colspan="20">${escapeText(sessionStorage.getItem(ADMIN_TOKEN_KEY) ? t("noResponseRows") : t("noResponsesLoaded"))}</td></tr>`;
+  const rows = visibleRows(savedResponses, (row) => row.participant?.timeframe);
+  if (!rows.length) {
+    responsesTableBody.innerHTML = `<tr><td colspan="21">${escapeText(savedResponses.length ? t("noRowsInTimeframe") : sessionStorage.getItem(ADMIN_TOKEN_KEY) ? t("noResponseRows") : t("noResponsesLoaded"))}</td></tr>`;
     return;
   }
-  responsesTableBody.innerHTML = savedResponses.map(row => `<tr>
+  responsesTableBody.innerHTML = rows.map(row => `<tr>
     <td><code>${escapeText(row.participantId)}</code></td>
     <td>${escapeText(row.participant?.puppyName || "")}</td>
+    <td>${escapeText(timeframeLabel(row.participant?.timeframe))}</td>
     <td>${escapeText(groupLabel(effectiveAssignedGroup(row)))}</td>
     <td>${escapeText(row.participant?.assignedVersion?.code || "")}</td>
     <td>${escapeText(String(row.studyDate || "").slice(0, 10))}</td>
@@ -795,7 +838,7 @@ function renderResponses() {
 
 function exportResponsesCsv() {
   const columns = [
-    ["participantId", "Participant ID"], ["puppyName", "Puppy name"], ["assignedGroup", "Assigned group"], ["assignedVersion", "Assigned version"], ["studyDate", "Study date"],
+    ["participantId", "Participant ID"], ["puppyName", "Puppy name"], ["timeframe", "Study timeframe"], ["assignedGroup", "Assigned group"], ["assignedVersion", "Assigned version"], ["studyDate", "Study date"],
     ["studyDay", "Study day"], ["moodPrediction", "Predicted mood"], ["actualMood", "Actual mood"],
     ["predictedEScore", "Predicted E"], ["actualEScore", "Actual E"], ["tValue", "T"], ["aValue", "A"],
     ["foodAffectsE", "Food affects E"], ["foodEScore", "Food E level"], ["foodComparisonLabel", "Food with greater effect"],
@@ -806,9 +849,10 @@ function exportResponsesCsv() {
   ];
   const csvCell = value => `"${String(value ?? "").replaceAll('"', '""')}"`;
   const lines = [columns.map(([, label]) => csvCell(label)).join(",")];
-  for (const row of savedResponses) {
+  for (const row of visibleRows(savedResponses, (row) => row.participant?.timeframe)) {
     const values = columns.map(([key]) => {
       if (key === "puppyName") return row.participant?.puppyName;
+      if (key === "timeframe") return timeframeLabel(row.participant?.timeframe);
       if (key === "assignedGroup") return groupLabel(effectiveAssignedGroup(row)) === t("unassigned") ? "" : groupLabel(effectiveAssignedGroup(row));
       if (key === "assignedVersion") return row.participant?.assignedVersion?.code || "";
       if (key === "fed") return row.fed ? "true" : "false";
