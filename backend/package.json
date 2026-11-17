@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch server.js",
+    "dev": "prisma migrate deploy && tsx watch server.js",
     "start": "node --import tsx server.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev && prisma generate",

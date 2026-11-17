@@ -54,7 +54,11 @@ Open:
 http://localhost:3001/admin
 ```
 
-Sign in with the local researcher password in `backend/.env`. Confirm an active trial-order set is listed. Upload a CSV only if there is no active set or you intentionally want to replace it; uploading is not part of every repeat test.
+The local example password is `puppy-local-admin`, unless `ADMIN_PASSWORD` in your private `backend/.env` sets another value. This is a development password only. Do not use it for an online service.
+
+Sign in with the local researcher password in `backend/.env`. Confirm the active trial-order sets are assigned to HIT-T (Treatment 1), HIT-A (Treatment 2), or LIT (Control), as appropriate. Upload a CSV only if there is no active set for a group or you intentionally want to replace it; uploading is not part of every repeat test. New participants are balanced among groups with an active set.
+
+The local server applies pending database migrations before it starts. Render applies the same migrations automatically when its Docker service starts. Existing TREATMENT data is migrated to HIT-T; existing CONTROL data becomes LIT.
 
 ### 4. Complete a fresh participant visit
 

@@ -17,9 +17,9 @@ This project is adding the README's Node.js + Express + PostgreSQL + Prisma back
 The local researcher page is available at `http://localhost:3001/admin` after the database migration has run.
 
 1. In Excel, open the generated workbook and select its `AllVersions` worksheet.
-2. Save that worksheet as a UTF-8 CSV file. It must keep the `version`, `day`, `T`, `A`, `E`, `T_label`, and `A_label` columns. The importer expects 24 unique rows per version, binary T/A values, and integer E scores from -1 to 10.
+2. Save that worksheet as a UTF-8 CSV file. It must keep the `version`, `day`, `T`, `A`, `E`, `T_label`, and `A_label` columns. The importer expects 24 unique rows per version, binary T/A values, and integer E scores from 0 to 12. Existing trial files are not converted automatically; update their E values manually before importing.
 3. Select the CSV on the admin page, check the preview, and choose **Validate and activate**. A newly uploaded set becomes active; future enrollments are randomly assigned one version from it. Existing participants keep their original assignment.
-4. New local participants open `http://localhost:3001/?backend=postgres`. The API returns only their assigned trial for the current study day and records the scheduled T/A/E values with their prediction and interaction durations.
+4. New local participants open `http://localhost:3001/?backend=postgres`. The API returns only their assigned trial for the current study day and records the scheduled T/A/E values with their prediction, interaction durations, and day 8/16/24 questionnaire answers.
 
 The import page and assignment API are gated by the local development flag. They have no researcher authentication and are not a hosted admin system. Do not expose this server to the internet or use real participant data with it.
 

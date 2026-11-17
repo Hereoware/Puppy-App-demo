@@ -5,8 +5,12 @@ import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { bearerSession, issueSession, requireAdmin, requireParticipant } from "./lib/auth.js";
+import { saveDailyResponse } from "./lib/daily-response-store.js";
 import { prisma } from "./lib/prisma.js";
+import { importedTrialSchema, responseSchema } from "./lib/response-schema.js";
+import { chooseBalancedStudyGroup, STUDY_GROUPS } from "./lib/study-groups.js";
 import { DEFAULT_STUDY_DAY_MINUTES, dateInZone, studyScheduleForParticipant } from "./lib/study-schedule.js";
+import { isSurveyDay, trialChoiceOptions } from "../study-days.mjs";
 
 const backendDirectory = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(backendDirectory, ".env") });
@@ -29,7 +33,7 @@ app.use(express.json({ limit: "2mb" }));
 // Serve only the app's public files. Do not expose backend source, .env, or node_modules.
 app.get("/", (_request, response) => response.sendFile(path.join(projectRoot, "index.html")));
 app.get("/admin", (_request, response) => response.sendFile(path.join(projectRoot, "admin.html")));
-for (const filename of ["app.js", "admin.js", "trial-order-parser.mjs", "styles.css", "firebase-config.js", "firebase-data.js", "manifest.webmanifest", "service-worker.js"]) {
+for (const filename of ["app.js", "admin.js", "trial-order-parser.mjs", "study-days.mjs", "styles.css", "firebase-config.js", "firebase-data.js", "manifest.webmanifest", "service-worker.js"]) {
   app.get(`/${filename}`, (_request, response) => response.sendFile(path.join(projectRoot, filename)));
 }
 app.use("/icons", express.static(path.join(projectRoot, "icons"), { dotfiles: "deny", index: false }));
@@ -46,28 +50,7 @@ const participantSchema = z.object({
 });
 const recoverySchema = z.object({ recoveryCode: z.string().trim().min(8).max(80) });
 const recoveryCodeUpdateSchema = z.object({ participantId: z.string().min(1).max(40), recoveryCode: z.string().trim().min(8).max(80).optional() });
-const responseSchema = z.object({
-  participantId: z.string().min(1).max(40),
-  studyDay: z.number().int().min(1).max(24),
-  studyDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  moodPrediction: z.enum(["HAPPY", "SAD"]).optional(),
-  actualMood: z.enum(["HAPPY", "SAD"]).optional(),
-  predictedEScore: z.number().int().min(-1).max(10).optional(),
-  interactions: z.object({ fed: z.boolean(), played: z.boolean(), foodDurationMs: z.number().int().min(0).max(60000).optional(), activityDurationMs: z.number().int().min(0).max(60000).optional() }),
-  requestId: z.string().min(8).max(80)
-}).refine((value) => value.predictedEScore !== undefined || value.moodPrediction !== undefined, {
-  message: "A prediction is required."
-});
-
-const studyGroupSchema = z.enum(["TREATMENT", "CONTROL"]);
-const importedTrialSchema = z.object({
-  day: z.number().int().min(1).max(24),
-  t: z.number().int().min(0).max(1),
-  a: z.number().int().min(0).max(1),
-  e: z.number().int().min(-1).max(10),
-  tLabel: z.string().trim().min(1).max(80),
-  aLabel: z.string().trim().min(1).max(80)
-});
+const studyGroupSchema = z.enum(STUDY_GROUPS);
 const trialOrderImportSchema = z.object({
   name: z.string().trim().min(1).max(120),
   category: z.string().trim().min(1).max(80).default("Uncategorized"),
@@ -138,6 +121,14 @@ function recoveryDigest(code) {
 }
 function newRecoveryCode() {
   return randomBytes(16).toString("hex").toUpperCase().match(/.{1,4}/g).join("-");
+}
+function dateOnly(value) {
+  return value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
+}
+async function advanceAcceleratedSchedule(participant, currentDay, schedule) {
+  const advancedEnrollment = new Date(Date.now() - currentDay * schedule.studyDayMinutes * 60000);
+  await prisma.participant.update({ where: { id: participant.id }, data: { enrolledAt: advancedEnrollment } });
+  return advancedEnrollment;
 }
 
 app.post("/api/admin/login", limitAdminLogin, (request, response) => {
@@ -245,27 +236,14 @@ async function activeTrialSetsByGroup(client = prisma) {
 }
 async function chooseBalancedAssignment(client = prisma) {
   const activeSets = await activeTrialSetsByGroup(client);
-  const treatmentSet = activeSets.get("TREATMENT");
-  const controlSet = activeSets.get("CONTROL");
-  if (!treatmentSet && !controlSet) return null;
-  if (!treatmentSet) {
-    const version = pickRandomVersion(controlSet.versions);
-    return { assignedGroup: "CONTROL", assignedVersionId: version.id, assignedVersionCode: version.code };
-  }
-  if (!controlSet) {
-    const version = pickRandomVersion(treatmentSet.versions);
-    return { assignedGroup: "TREATMENT", assignedVersionId: version.id, assignedVersionCode: version.code };
-  }
+  if (!activeSets.size) return null;
   const counts = await client.participant.groupBy({
     by: ["assignedGroup"],
     _count: { _all: true },
-    where: { assignedGroup: { in: ["TREATMENT", "CONTROL"] } }
+    where: { assignedGroup: { in: [...activeSets.keys()] } }
   });
-  const treatmentCount = counts.find((item) => item.assignedGroup === "TREATMENT")?._count._all || 0;
-  const controlCount = counts.find((item) => item.assignedGroup === "CONTROL")?._count._all || 0;
-  const assignedGroup = treatmentCount === controlCount
-    ? (randomInt(2) === 0 ? "TREATMENT" : "CONTROL")
-    : treatmentCount < controlCount ? "TREATMENT" : "CONTROL";
+  const participantCounts = new Map(counts.map((item) => [item.assignedGroup, item._count._all]));
+  const assignedGroup = chooseBalancedStudyGroup(new Set(activeSets.keys()), participantCounts, randomInt);
   const set = activeSets.get(assignedGroup);
   const version = pickRandomVersion(set.versions);
   return { assignedGroup, assignedVersionId: version.id, assignedVersionCode: version.code };
@@ -323,7 +301,7 @@ app.post("/api/participants", limitEnrollment, async (request, response) => {
     if (participant) participant = await prisma.participant.update({ where: { id: requestedId }, data: { puppyName: parsed.data.puppyName } });
     else {
       const assignment = await chooseBalancedAssignment();
-      if (!assignment) return response.status(409).json({ error: "No active treatment/control trial order is available. Import one from the researcher page first." });
+      if (!assignment) return response.status(409).json({ error: "No active study-group trial order is available. Import one from the researcher page first." });
       participant = await prisma.participant.create({
         data: {
           id: requestedId,
@@ -335,7 +313,7 @@ app.post("/api/participants", limitEnrollment, async (request, response) => {
     }
   } else {
     const assignment = await chooseBalancedAssignment();
-    if (!assignment) return response.status(409).json({ error: "No active treatment/control trial order is available. Import one from the researcher page first." });
+    if (!assignment) return response.status(409).json({ error: "No active study-group trial order is available. Import one from the researcher page first." });
     participant = await prisma.participant.create({
       data: {
         puppyName: parsed.data.puppyName,
@@ -346,7 +324,7 @@ app.post("/api/participants", limitEnrollment, async (request, response) => {
   }
 
   participant = await hydrateParticipantAssignment(participant);
-  if (!participant?.assignedVersionId) return response.status(409).json({ error: "No active treatment/control trial order is available. Import one from the researcher page first." });
+  if (!participant?.assignedVersionId) return response.status(409).json({ error: "No active study-group trial order is available. Import one from the researcher page first." });
   let recoveryCode = null;
   if (!participant.recoveryCodeDigest) {
     recoveryCode = newRecoveryCode();
@@ -354,6 +332,13 @@ app.post("/api/participants", limitEnrollment, async (request, response) => {
   }
   const assignment = await readParticipantAssignment(participant);
   const schedule = studyScheduleForParticipant(participant);
+  const savedToday = schedule.currentStudyDay <= 24
+    ? await prisma.dailyResponse.findUnique({
+      where: { participantId_studyDay: { participantId: participant.id, studyDay: schedule.currentStudyDay } },
+      select: { studyDate: true }
+    })
+    : null;
+  const completedToday = Boolean(savedToday && dateOnly(savedToday.studyDate) === schedule.currentStudyDate);
   response.status(201).json({
     participantId: participant.id,
     puppyName: participant.puppyName,
@@ -362,6 +347,9 @@ app.post("/api/participants", limitEnrollment, async (request, response) => {
     enrolledDate: dateInZone(participant.enrolledAt, participant.timeZone),
     enrolledAt: participant.enrolledAt.toISOString(),
     studyDayMinutes: schedule.studyDayMinutes,
+    completedToday,
+    completedDate: completedToday ? schedule.currentStudyDate : null,
+    completedStudyDay: completedToday ? schedule.currentStudyDay : null,
     token: issueSession("participant", participant.id),
     recoveryCode
   });
@@ -379,8 +367,9 @@ app.post("/api/participants/recover", limitRecovery, async (request, response) =
   const today = schedule.currentStudyDate;
   const currentDay = schedule.currentStudyDay;
   const savedToday = currentDay <= 24 ? await prisma.dailyResponse.findUnique({ where: { participantId_studyDay: { participantId: participant.id, studyDay: currentDay } }, select: { studyDate: true } }) : null;
+  const completedToday = Boolean(savedToday && dateOnly(savedToday.studyDate) === today);
   const assignment = await readParticipantAssignment(participant);
-  response.json({ participantId: participant.id, puppyName: participant.puppyName, assignedGroup: assignment.assignedGroup, assignedVersion: assignment.assignedVersion, enrolledDate: dateInZone(participant.enrolledAt, participant.timeZone), enrolledAt: participant.enrolledAt.toISOString(), studyDayMinutes: schedule.studyDayMinutes, token: issueSession("participant", participant.id), recoveryCode, completedToday: Boolean(savedToday), completedDate: savedToday ? today : null, completedStudyDay: savedToday ? currentDay : null });
+  response.json({ participantId: participant.id, puppyName: participant.puppyName, assignedGroup: assignment.assignedGroup, assignedVersion: assignment.assignedVersion, enrolledDate: dateInZone(participant.enrolledAt, participant.timeZone), enrolledAt: participant.enrolledAt.toISOString(), studyDayMinutes: schedule.studyDayMinutes, token: issueSession("participant", participant.id), recoveryCode, completedToday, completedDate: completedToday ? today : null, completedStudyDay: completedToday ? currentDay : null });
 });
 
 app.post("/api/participants/recovery-code", async (request, response) => {
@@ -411,25 +400,52 @@ app.get("/api/participants/:participantId/trials/:studyDay", async (request, res
     ? participant.assignedVersion.trials.find((item) => item.day === day)
     : null;
   if (!trial) return response.status(409).json({ error: "No assigned trial is available for this day." });
-  response.json({ assignedVersion: participant.assignedVersion.code, studyDate: schedule.currentStudyDate, studyDayMinutes: schedule.studyDayMinutes, ...trial });
+  if (!Number.isInteger(trial.e) || trial.e < 0 || trial.e > 12) {
+    return response.status(409).json({ error: "The assigned trial contains an E value outside 0–12. The researcher must update this trial order." });
+  }
+  const versionTrials = participant.assignedVersion.trials;
+  const foodOptions = trialChoiceOptions(versionTrials, "t", "tLabel");
+  const activityOptions = trialChoiceOptions(versionTrials, "a", "aLabel");
+  if (isSurveyDay(day) && (foodOptions.length !== 2 || activityOptions.length !== 2)) {
+    return response.status(409).json({ error: "This study version does not contain both labeled food and activity options required for the questionnaire." });
+  }
+  response.json({
+    assignedVersion: participant.assignedVersion.code,
+    studyDate: schedule.currentStudyDate,
+    studyDayMinutes: schedule.studyDayMinutes,
+    ...trial,
+    ...(isSurveyDay(day) ? { foodOptions, activityOptions } : {})
+  });
 });
 
 app.post("/api/responses", async (request, response) => {
   const parsed = responseSchema.safeParse(request.body);
-  if (!parsed.success) return response.status(400).json({ error: "The trial response is incomplete or invalid." });
+  if (!parsed.success) return response.status(400).json({ error: parsed.error.issues[0]?.message || "The trial response is incomplete or invalid." });
   const data = parsed.data;
   if (!requireParticipant(request, response, data.participantId)) return;
   const participant = await prisma.participant.findUnique({ where: { id: data.participantId } });
   if (!participant || participant.status !== "ACTIVE") return response.status(404).json({ error: "Participant was not found." });
-
   const schedule = studyScheduleForParticipant(participant);
+  const previousRequest = await prisma.dailyResponse.findUnique({
+    where: { participantId_requestId: { participantId: data.participantId, requestId: data.requestId } }
+  });
+  if (previousRequest) {
+    if (schedule.studyDayMinutes < DEFAULT_STUDY_DAY_MINUTES && previousRequest.studyDay < 24) {
+      let nextStudyDay = schedule.currentStudyDay;
+      if (nextStudyDay === previousRequest.studyDay) {
+        const enrolledAt = await advanceAcceleratedSchedule(participant, previousRequest.studyDay, schedule);
+        nextStudyDay = previousRequest.studyDay + 1;
+        return response.json({ saved: true, alreadySaved: true, autoAdvanced: true, nextStudyDay, enrolledAt: enrolledAt.toISOString() });
+      }
+      if (nextStudyDay > previousRequest.studyDay) {
+        return response.json({ saved: true, alreadySaved: true, autoAdvanced: true, nextStudyDay, enrolledAt: participant.enrolledAt.toISOString() });
+      }
+    }
+    return response.json({ saved: true, alreadySaved: true });
+  }
+
   const currentDay = schedule.currentStudyDay;
   if (data.studyDay !== currentDay) return response.status(409).json({ error: "A response can only be submitted for the current study day." });
-
-  const previousRequest = await prisma.dailyResponse.findUnique({ where: { participantId_requestId: { participantId: data.participantId, requestId: data.requestId } } });
-  if (previousRequest) return response.json({ saved: true, alreadySaved: true });
-  const previousDay = await prisma.dailyResponse.findUnique({ where: { participantId_studyDay: { participantId: data.participantId, studyDay: data.studyDay } } });
-  if (previousDay) return response.status(409).json({ error: "A response already exists for this study day." });
 
   const date = new Date(`${data.studyDate}T00:00:00.000Z`);
   if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== data.studyDate) return response.status(400).json({ error: "Invalid study date." });
@@ -437,40 +453,55 @@ app.post("/api/responses", async (request, response) => {
     ? await prisma.trialOrderVersion.findUnique({ where: { id: participant.assignedVersionId } })
     : null;
   const assignedTrial = Array.isArray(assignedVersion?.trials) ? assignedVersion.trials.find((trial) => trial.day === data.studyDay) : null;
+  if (!assignedTrial) return response.status(409).json({ error: "No assigned trial is available for this day." });
+  if (!Number.isInteger(assignedTrial.e) || assignedTrial.e < 0 || assignedTrial.e > 12) {
+    return response.status(409).json({ error: "The assigned trial contains an E value outside 0–12. The researcher must update this trial order." });
+  }
   if (assignedTrial && data.studyDate !== schedule.currentStudyDate) {
     return response.status(409).json({ error: "The response date must be today in the study time zone." });
   }
-  try {
-    await prisma.dailyResponse.create({
-      data: {
-        participantId: data.participantId,
-        studyDay: data.studyDay,
-        studyDate: date,
-        moodPrediction: data.moodPrediction,
-        actualMood: data.actualMood,
-        predictedEScore: data.predictedEScore,
-        actualEScore: assignedTrial?.e,
-        tValue: assignedTrial?.t,
-        aValue: assignedTrial?.a,
-        tLabel: assignedTrial?.tLabel,
-        aLabel: assignedTrial?.aLabel,
-        fed: data.interactions.fed,
-        played: data.interactions.played,
-        foodDurationMs: data.interactions.foodDurationMs,
-        activityDurationMs: data.interactions.activityDurationMs,
-        requestId: data.requestId
-      }
-    });
-  } catch (error) {
-    if (error.code === "P2002") return response.status(409).json({ error: "A response already exists for this study day." });
-    throw error;
+  const survey = data.survey;
+  if (isSurveyDay(data.studyDay)) {
+    const foodOptions = trialChoiceOptions(assignedVersion.trials, "t", "tLabel");
+    const activityOptions = trialChoiceOptions(assignedVersion.trials, "a", "aLabel");
+    if (foodOptions.length !== 2 || activityOptions.length !== 2) {
+      return response.status(409).json({ error: "This study version does not contain both labeled food and activity options required for the questionnaire." });
+    }
+    if ((survey.foodAffectsE && !foodOptions.some(({ label }) => label === survey.foodComparisonLabel))
+      || (survey.activityAffectsE && !activityOptions.some(({ label }) => label === survey.activityComparisonLabel))) {
+      return response.status(400).json({ error: "Choose a food and activity comparison option from the assigned study version." });
+    }
   }
+  const saveResult = await saveDailyResponse(prisma, {
+    participantId: data.participantId,
+    studyDay: data.studyDay,
+    studyDate: date,
+    moodPrediction: data.moodPrediction,
+    actualMood: data.actualMood,
+    predictedEScore: data.predictedEScore,
+    actualEScore: assignedTrial.e,
+    tValue: assignedTrial.t,
+    aValue: assignedTrial.a,
+    tLabel: assignedTrial.tLabel,
+    aLabel: assignedTrial.aLabel,
+    fed: data.interactions.fed,
+    played: data.interactions.played,
+    foodDurationMs: data.interactions.foodDurationMs,
+    activityDurationMs: data.interactions.activityDurationMs,
+    foodAffectsE: survey?.foodAffectsE,
+    foodEScore: survey?.foodAffectsE ? survey.foodEScore : null,
+    foodComparisonLabel: survey?.foodAffectsE ? survey.foodComparisonLabel : null,
+    activityAffectsE: survey?.activityAffectsE,
+    activityEScore: survey?.activityAffectsE ? survey.activityEScore : null,
+    activityComparisonLabel: survey?.activityAffectsE ? survey.activityComparisonLabel : null,
+    requestId: data.requestId
+  });
+  if (saveResult.alreadySaved) return response.json({ saved: true, alreadySaved: true });
+  if (saveResult.conflict) return response.status(409).json({ error: "A response already exists for this study day." });
 
   const shouldAutoAdvance = schedule.studyDayMinutes < DEFAULT_STUDY_DAY_MINUTES && currentDay < 24;
   if (shouldAutoAdvance) {
-    const now = new Date();
-    const advancedEnrollment = new Date(now.getTime() - currentDay * schedule.studyDayMinutes * 60000);
-    await prisma.participant.update({ where: { id: participant.id }, data: { enrolledAt: advancedEnrollment } });
+    const advancedEnrollment = await advanceAcceleratedSchedule(participant, currentDay, schedule);
     return response.status(201).json({ saved: true, alreadySaved: false, autoAdvanced: true, nextStudyDay: currentDay + 1, enrolledAt: advancedEnrollment.toISOString() });
   }
 
@@ -535,8 +566,5 @@ async function shutdown() {
 }
 process.on("SIGINT", shutdown);
 process.on("SIGTERM", shutdown);
-
-
-
 
 

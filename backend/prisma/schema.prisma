@@ -14,8 +14,9 @@ enum ParticipantStatus {
 }
 
 enum StudyGroup {
-  TREATMENT
-  CONTROL
+  HIT_T
+  HIT_A
+  LIT
 }
 
 enum MoodPrediction {
@@ -57,6 +58,12 @@ model DailyResponse {
   played         Boolean
   foodDurationMs Int?
   activityDurationMs Int?
+  foodAffectsE   Boolean?
+  foodEScore     Int?
+  foodComparisonLabel String?    @db.VarChar(80)
+  activityAffectsE Boolean?
+  activityEScore Int?
+  activityComparisonLabel String? @db.VarChar(80)
   requestId      String         @db.VarChar(80)
   createdAt      DateTime       @default(now()) @db.Timestamptz(3)
 
@@ -69,7 +76,7 @@ model TrialOrderSet {
   id              String              @id @default(cuid())
   name            String              @db.VarChar(120)
   category        String              @default("Uncategorized") @db.VarChar(80)
-  assignmentGroup StudyGroup          @default(TREATMENT)
+  assignmentGroup StudyGroup          @default(HIT_T)
   active          Boolean             @default(false)
   createdAt       DateTime            @default(now()) @db.Timestamptz(3)
   versions        TrialOrderVersion[]
@@ -89,4 +96,3 @@ model TrialOrderVersion {
   @@unique([setId, code])
   @@index([setId])
 }
-

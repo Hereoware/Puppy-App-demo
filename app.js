@@ -1,3 +1,5 @@
+import { isCompleteSurvey, isSurveyDay, nextScreenAfterPrediction, surveyFollowupVisible } from "./study-days.mjs";
+
 const app = document.querySelector("#app");
 const toast = document.querySelector("#toast");
 const STORE_KEY = "puppy-study-prototype-v2";
@@ -35,7 +37,7 @@ const neutralCopy = {
     fed: "Food interaction complete",
     played: "Activity interaction complete",
     moodQuestion: "What E score do you predict for today?",
-    choose: "Choose one score from −1 to 10.",
+    choose: "Choose one whole-number E score from 0 to 12.",
     scoreLabel: "Predicted E score",
     feedback: "Today’s displayed E score",
     imagine: "Review today’s information",
@@ -47,6 +49,15 @@ const neutralCopy = {
     fetchTarget: "Bring the disc here",
     tugInstruction: "Hold and pull the loose end of the rope",
     behaviorScore: "E score: {score}",
+    surveyTitle: "A few questions about today",
+    foodInfluenceQuestion: "Do you think food affects Puppy’s E emotion?",
+    activityInfluenceQuestion: "Do you think activities affect Puppy’s E emotion?",
+    yes: "Yes",
+    noEffect: "No",
+    surveyScoreQuestion: "What E emotion level do you think Puppy has? Choose a whole number from 0 to 12.",
+    foodComparisonQuestion: "Which food has a greater effect on E?",
+    activityComparisonQuestion: "Which activity has a greater effect on E?",
+    surveyContinue: "Continue",
     prototype: "Interactive prototype."
   },
   zh: {
@@ -62,7 +73,7 @@ const neutralCopy = {
     fed: "食物互动完成",
     played: "活动互动完成",
     moodQuestion: "你预测今天的 E 分数是多少？",
-    choose: "请选择 −1 到 10 之间的一个分数。",
+    choose: "请选择 0 到 12 之间的整数 E 分数。",
     scoreLabel: "预测的 E 分数",
     feedback: "今天展示的 E 分数",
     imagine: "回顾今天的信息",
@@ -74,6 +85,15 @@ const neutralCopy = {
     fetchTarget: "把飞盘拖到这里",
     tugInstruction: "按住绳子另一端并拖动",
     behaviorScore: "E 分数：{score}",
+    surveyTitle: "回答几个关于今天的问题",
+    foodInfluenceQuestion: "你认为食物会影响 Puppy 的 E 情绪吗？",
+    activityInfluenceQuestion: "你认为活动会影响 Puppy 的 E 情绪吗？",
+    yes: "有",
+    noEffect: "没有",
+    surveyScoreQuestion: "你认为 Puppy 的 E 情绪水平是多少？请选择 0 到 12 的整数。",
+    foodComparisonQuestion: "哪种食物对 E 的影响更大？",
+    activityComparisonQuestion: "哪种活动对 E 的影响更大？",
+    surveyContinue: "继续",
     prototype: "交互原型。"
   },
   es: {
@@ -89,7 +109,7 @@ const neutralCopy = {
     fed: "Interacción con alimento completada",
     played: "Interacción con actividad completada",
     moodQuestion: "¿Qué puntuación E predices para hoy?",
-    choose: "Elige una puntuación de −1 a 10.",
+    choose: "Elige una puntuación E entera de 0 a 12.",
     scoreLabel: "Puntuación E predicha",
     feedback: "Puntuación E mostrada hoy",
     imagine: "Revisa la información de hoy",
@@ -101,6 +121,15 @@ const neutralCopy = {
     fetchTarget: "Trae el disco aquí",
     tugInstruction: "Mantén pulsado y tira del extremo libre de la cuerda",
     behaviorScore: "Puntuación E: {score}",
+    surveyTitle: "Unas preguntas sobre hoy",
+    foodInfluenceQuestion: "¿Crees que la comida afecta la emoción E del cachorro?",
+    activityInfluenceQuestion: "¿Crees que las actividades afectan la emoción E del cachorro?",
+    yes: "Sí",
+    noEffect: "No",
+    surveyScoreQuestion: "¿Qué nivel de emoción E crees que tiene el cachorro? Elige un número entero de 0 a 12.",
+    foodComparisonQuestion: "¿Qué alimento tiene un mayor efecto en E?",
+    activityComparisonQuestion: "¿Qué actividad tiene un mayor efecto en E?",
+    surveyContinue: "Continuar",
     prototype: "Prototipo interactivo."
   }
 };
@@ -117,12 +146,33 @@ function dataNotice() { const c = window.PUPPY_FIREBASE_CONFIG; if (isPostgresTr
 async function postgresRequest(path, body) {
   const headers = { "Content-Type": "application/json" };
   if (state?.participantToken) headers.Authorization = `Bearer ${state.participantToken}`;
+  if (path === "responses") {
+    if (isSurveyDay(body.studyDay)) {
+      if (!isCompleteSurvey(body.studyDay, state?.surveyAnswers)) throw new Error("Complete every required questionnaire question before submitting.");
+      const answers = state.surveyAnswers;
+      body.survey = surveyPayload();
+    }
+    saveState();
+  }
   const response = await fetch(`/api/${path}`, { method: "POST", headers, body: JSON.stringify(body) });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || ac("saveFailed"));
+  if (path === "responses" && result.autoAdvanced) {
+    state.surveyAnswers = null;
+    saveState();
+  }
   return result;
 }
-function firebaseData() { firebaseDataPromise ||= import("./firebase-data.js"); return firebaseDataPromise; }
+function firebaseData() {
+  firebaseDataPromise ||= import("./firebase-data.js").then((api) => ({
+    ...api,
+    submitDailyResponse: (payload) => api.submitDailyResponse({
+      ...payload,
+      ...(isSurveyDay(payload.studyDay) ? { survey: surveyPayload() } : {})
+    })
+  }));
+  return firebaseDataPromise;
+}
 let state = loadState();
 let timer = null;
 let idleTimer = null;
@@ -201,9 +251,26 @@ function clearParticipantState() {
 if (state && state.environmentIntroSeen === undefined) { state.environmentIntroSeen = true; saveState(); }
 function t(key, vars = {}) { return (neutralCopy[language]?.[key] || translations[language][key] || translations.en[key] || key).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? ""); }
 function escapeHtml(value) { return String(value).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]); }
-function puppy(name, idle = false, score = state?.currentTrial?.e ?? state?.actualEScore ?? 5) {
-  const safeScore = Number.isFinite(Number(score)) ? Math.max(-1, Math.min(10, Number(score))) : 5;
-  const hearts = Math.max(0, Math.min(4, Math.round((safeScore + 1) / 3)));
+function surveyPayload() {
+  const answers = state.surveyAnswers;
+  return {
+    foodAffectsE: answers.foodAffectsE,
+    ...(answers.foodAffectsE ? { foodEScore: answers.foodEScore, foodComparisonLabel: answers.foodComparisonLabel } : {}),
+    activityAffectsE: answers.activityAffectsE,
+    ...(answers.activityAffectsE ? { activityEScore: answers.activityEScore, activityComparisonLabel: answers.activityComparisonLabel } : {})
+  };
+}
+function surveyOptions(kind) {
+  const assignedOptions = state.currentTrial?.[`${kind}Options`];
+  if (Array.isArray(assignedOptions)) return assignedOptions;
+  return [0, 1].map((value) => ({
+    value,
+    label: kind === "food" ? foodName({ t: value }) : activityName({ a: value })
+  }));
+}
+function puppy(name, idle = false, score = 5) {
+  const safeScore = Number.isFinite(Number(score)) ? Math.max(0, Math.min(12, Number(score))) : 5;
+  const hearts = Math.max(0, Math.min(4, Math.round(safeScore / 3)));
   return `<div class="puppy-stage ${idle ? "idle-scene" : ""}" aria-label="${escapeHtml(name)} the puppy">
     <div class="sun-glow"></div><div class="ground-shadow"></div>
     <div class="dog ${idle ? "dog-idle" : "dog-arrive"} score-${safeScore >= 9 ? "jump" : safeScore >= 6 ? "high" : safeScore >= 3 ? "mid" : "low"}" style="--tail-wag-angle:${Math.max(0, (safeScore + 1) * 3)}deg" aria-hidden="true">
@@ -217,7 +284,7 @@ function puppy(name, idle = false, score = state?.currentTrial?.e ?? state?.actu
 function languagePicker() { return `<label class="language-picker"><span>${t("language")}</span><select id="language-select" aria-label="${t("language")}"><option value="en" ${language === "en" ? "selected" : ""}>English</option><option value="zh" ${language === "zh" ? "selected" : ""}>中文</option><option value="es" ${language === "es" ? "selected" : ""}>Español</option></select></label>`; }
 function bindLanguage() { document.querySelector("#language-select")?.addEventListener("change", e => { language = e.target.value; if (state) { state.language = language; saveState(); } render(); }); }
 function render() {
-  if (state?.completedToday && state.completedDate !== studyPeriodKey()) { state.completedToday = false; state.screen = "home"; feedDone = false; playDone = false; state.actualMood = null; state.prediction = null; state.predictedEScore = null; state.currentTrial = null; state.interactions = { fed: false, played: false }; state.requestId = null; saveState(); }
+  if (state?.completedToday && state.completedDate !== studyPeriodKey()) { state.completedToday = false; state.screen = "home"; feedDone = false; playDone = false; state.actualMood = null; state.prediction = null; state.predictedEScore = null; state.surveyAnswers = null; state.currentTrial = null; state.interactions = { fed: false, played: false }; state.requestId = null; saveState(); }
   if (state && !state.environmentIntroSeen && state.screen === "home") state.screen = "environment-intro";
   document.documentElement.lang = language === "zh" ? "zh-CN" : language === "es" ? "es" : "en";
   if (!state) return renderOnboarding();
@@ -230,9 +297,17 @@ function render() {
     return renderActivities();
   }
   if (state.screen === "question") return renderQuestion();
+  if (state.screen === "survey") return renderSurvey();
   if (state.screen === "feedback") return renderFeedback();
   if (state.screen === "imagine") return renderImagine();
-  if (state.screen === "complete") return renderComplete();
+  if (state.screen === "complete") {
+    if (isSurveyDay(studyDay()) && !isCompleteSurvey(studyDay(), state.surveyAnswers)) {
+      state.screen = "survey";
+      saveState();
+      return renderSurvey();
+    }
+    return renderComplete();
+  }
   renderHome();
 }
 function renderOnboarding() {
@@ -248,7 +323,8 @@ function renderOnboarding() {
     try {
       if (isPostgresTrial()) {
         const profile = await postgresRequest("participants", { puppyName: name });
-        state = { participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: profile.recoveryCode ? "recovery-setup" : "environment-intro", environmentIntroSeen: false, completedToday: false, completedStudyDay: null, enrolledDate: profile.enrolledDate || todayKey(), enrolledAt: profile.enrolledAt || null, studyDayMinutes: profile.studyDayMinutes || DEFAULT_STUDY_DAY_MINUTES, interactions: { fed: false, played: false }, localOnly: true };
+        const profileStudyDayMinutes = profile.studyDayMinutes || DEFAULT_STUDY_DAY_MINUTES;
+        state = { participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: profile.recoveryCode ? "recovery-setup" : "environment-intro", environmentIntroSeen: false, completedToday: profile.completedToday, completedDate: profile.completedToday ? (profileStudyDayMinutes < DEFAULT_STUDY_DAY_MINUTES ? `block-${profile.completedStudyDay}` : `date-${todayKey()}`) : null, completedStudyDay: profile.completedStudyDay, enrolledDate: profile.enrolledDate || todayKey(), enrolledAt: profile.enrolledAt || null, studyDayMinutes: profileStudyDayMinutes, interactions: { fed: false, played: false }, localOnly: true };
         pendingRecoveryCode = profile.recoveryCode;
       } else if (hasFirebaseConfig()) {
         const profile = await (await firebaseData()).enrollParticipant(name);
@@ -296,8 +372,7 @@ async function loadTrialForDay() {
     if (!response.ok) throw new Error(result.error || ac("saveFailed"));
     state.currentTrial = result;
   } else {
-    const previewScores = [-1, 1, 3, 5, 6, 8, 9, 10];
-    state.currentTrial = { day, t: day % 2, a: day <= 12 ? 1 : 0, e: previewScores[(day - 1) % previewScores.length] };
+    state.currentTrial = { day, t: day % 2, a: day <= 12 ? 1 : 0, e: (day - 1) % 13 };
   }
   state.actualEScore = state.currentTrial.e;
   saveState();
@@ -316,7 +391,7 @@ function renderActivities() {
   const foodIcon = trial.t === 1 ? "🥕" : "🐟";
   const activityIsTug = trial.a === 1;
   const activityIcon = activityIsTug ? "🪢" : "🥏";
-  app.innerHTML = `<header class="topbar"><span class="brand">🐾 ${t("title")}</span><span class="step-pill">${t("day")} ${studyDay()} · 1 / 3</span></header><section class="activity-screen"><div class="activity-heading"><p class="eyebrow">${t("day")} ${studyDay()} · T + A</p><h1>${escapeHtml(state.puppyName)}’s day</h1><p>${t("treatText")} ${t("playText")}</p></div><div id="phaser-scene-mount" class="phaser-scene-mount" data-phaser-pending="true" data-phaser-scene="daily-yard" aria-label="Puppy interaction scene"><div class="environment-scene daily-scene"><span class="scene-prop prop-food-bag" aria-hidden="true">🛍️</span><span class="scene-prop prop-bowl" aria-hidden="true">🥣</span><span class="scene-prop prop-rope" aria-hidden="true">🪢</span><span class="scene-prop prop-disc" aria-hidden="true">🥏</span><span class="scene-prop prop-bed" aria-hidden="true">🛏️</span>${puppy(state.puppyName, false, trial.e)}</div></div><article class="activity-card interaction-card"><div><p class="eyebrow">T · ${escapeHtml(food)}</p><h2>${t("treatTitle")}</h2><p>${t("treatText")}</p></div><div class="food-playground"><span class="interaction-arrow" aria-hidden="true">👇</span><button id="food-token" class="drag-token food-token" type="button" aria-label="${t("foodArrow")}" ${feedDone ? "disabled" : ""}>${foodIcon}</button><div id="food-bowl-target" class="food-bowl-target" role="img" aria-label="Dog food bowl">🥣</div></div><div class="interaction-meter"><span id="food-fill"></span></div><small id="food-status" class="interaction-status" aria-live="polite">${feedDone ? t("fed") : t("foodArrow")}</small></article><article class="activity-card interaction-card"><div><p class="eyebrow">A · ${escapeHtml(activity)}</p><h2>${t("playTitle")}</h2><p>${t("playText")}</p></div><div class="activity-playground ${activityIsTug ? "is-tug" : "is-fetch"}"><span class="activity-dog-target" id="activity-dog-target" aria-hidden="true">🐶</span><span class="rope-line" aria-hidden="true">〰〰〰〰〰</span><button id="activity-token" class="drag-token activity-token" type="button" aria-label="${t("activityArrow")}" ${playDone ? "disabled" : ""}>${playDone ? "✓" : activityIcon}</button><span class="interaction-arrow activity-arrow" aria-hidden="true">👆</span></div><div class="interaction-meter"><span id="activity-fill"></span></div><small id="activity-status" class="interaction-status" aria-live="polite">${playDone ? t("played") : activityIsTug ? t("tugInstruction") : t("fetchTarget")}</small></article><button id="activities-next" class="button button-primary button-wide" ${feedDone && playDone ? "" : "disabled"}>${t("continue")}</button></section>`;
+  app.innerHTML = `<header class="topbar"><span class="brand">🐾 ${t("title")}</span><span class="step-pill">${t("day")} ${studyDay()} · 1 / 3</span></header><section class="activity-screen"><div class="activity-heading"><p class="eyebrow">${t("day")} ${studyDay()} · T + A</p><h1>${escapeHtml(state.puppyName)}’s day</h1><p>${t("treatText")} ${t("playText")}</p></div>  <div id="phaser-scene-mount" class="phaser-scene-mount" data-phaser-pending="true" data-phaser-scene="daily-yard" aria-label="Puppy interaction scene"><div class="environment-scene daily-scene"><span class="scene-prop prop-food-bag" aria-hidden="true">🛍️</span><span class="scene-prop prop-bowl" aria-hidden="true">🥣</span><span class="scene-prop prop-rope" aria-hidden="true">🪢</span><span class="scene-prop prop-disc" aria-hidden="true">🥏</span><span class="scene-prop prop-bed" aria-hidden="true">🛏️</span>${puppy(state.puppyName, false, isSurveyDay(studyDay()) ? 5 : trial.e)}</div></div><article class="activity-card interaction-card"><div><p class="eyebrow">T · ${escapeHtml(food)}</p><h2>${t("treatTitle")}</h2><p>${t("treatText")}</p></div><div class="food-playground"><span class="interaction-arrow" aria-hidden="true">👇</span><button id="food-token" class="drag-token food-token" type="button" aria-label="${t("foodArrow")}" ${feedDone ? "disabled" : ""}>${foodIcon}</button><div id="food-bowl-target" class="food-bowl-target" role="img" aria-label="Dog food bowl">🥣</div></div><div class="interaction-meter"><span id="food-fill"></span></div><small id="food-status" class="interaction-status" aria-live="polite">${feedDone ? t("fed") : t("foodArrow")}</small></article><article class="activity-card interaction-card"><div><p class="eyebrow">A · ${escapeHtml(activity)}</p><h2>${t("playTitle")}</h2><p>${t("playText")}</p></div><div class="activity-playground ${activityIsTug ? "is-tug" : "is-fetch"}"><span class="activity-dog-target" id="activity-dog-target" aria-hidden="true">🐶</span><span class="rope-line" aria-hidden="true">〰〰〰〰〰</span><button id="activity-token" class="drag-token activity-token" type="button" aria-label="${t("activityArrow")}" ${playDone ? "disabled" : ""}>${playDone ? "✓" : activityIcon}</button><span class="interaction-arrow activity-arrow" aria-hidden="true">👆</span></div><div class="interaction-meter"><span id="activity-fill"></span></div><small id="activity-status" class="interaction-status" aria-live="polite">${playDone ? t("played") : activityIsTug ? t("tugInstruction") : t("fetchTarget")}</small></article><button id="activities-next" class="button button-primary button-wide" ${feedDone && playDone ? "" : "disabled"}>${t("continue")}</button></section>`;
   const foodToken = document.querySelector("#food-token"); const foodTarget = document.querySelector("#food-bowl-target");
   foodToken.addEventListener("pointerdown", startFoodDrag); foodToken.addEventListener("pointermove", moveFoodDrag); foodToken.addEventListener("pointerup", finishFoodDrag); foodToken.addEventListener("pointercancel", resetFoodDrag); foodToken.addEventListener("lostpointercapture", resetFoodDrag); foodToken.addEventListener("click", () => triggerFoodInteraction()); foodTarget?.addEventListener("click", () => triggerFoodInteraction());
   const activityToken = document.querySelector("#activity-token"); const activityTarget = document.querySelector("#activity-dog-target");
@@ -345,10 +420,119 @@ function cancelActivityDrag(event) { if (interactionKind === "tug") clearTimeout
 function completeInteraction(kind, durationMs) { clearTimeout(timer); interactionKind = null; if (kind === "fed") { feedDone = true; state.interactions = { ...(state.interactions || {}), fed: true, foodDurationMs: durationMs }; const token = document.querySelector("#food-token"); if (token) token.disabled = true; const statusNode = document.querySelector("#food-status"); if (statusNode) statusNode.textContent = t("fed"); } if (kind === "played") { playDone = true; state.interactions = { ...(state.interactions || {}), played: true, activityDurationMs: durationMs }; const token = document.querySelector("#activity-token"); if (token) { token.disabled = true; token.textContent = "✓"; token.style.transform = ""; } const statusNode = document.querySelector("#activity-status"); if (statusNode) statusNode.textContent = t("played"); document.querySelector(".activity-playground")?.classList.add("interaction-finished"); } saveState(); updateNext(); }
 window.PuppyPhaserBridge = { mount(id, setup) { const mount = document.getElementById(id); if (!mount) return null; mount.dataset.phaserPending = String(!window.Phaser); if (window.Phaser && typeof setup === "function") return setup(mount); return null; }, complete: completeInteraction };
 function updateNext() { const b = document.querySelector("#activities-next"); if (b) b.disabled = !(feedDone && playDone); }
-function renderQuestion() { app.innerHTML = `<header class="topbar"><span class="brand">🐾 ${t("title")}</span><span class="step-pill">${t("day")} ${studyDay()} · 2 / 3</span></header><section class="question-screen"><div class="mini-dog">${puppy(state.puppyName, true, state.currentTrial?.e)}</div><p class="eyebrow">${t("day")} ${studyDay()}</p><h1>${t("moodQuestion")}</h1><p class="question-subtitle">${t("choose")}</p><label class="score-input-card" for="e-prediction"><span>${t("scoreLabel")}</span><select id="e-prediction"><option value="">—</option>${Array.from({ length: 12 }, (_, index) => index - 1).map((score) => `<option value="${score}" ${state.predictedEScore === score ? "selected" : ""}>${score}</option>`).join("")}</select></label><button id="mood-next" class="button button-primary button-wide" ${Number.isInteger(state.predictedEScore) ? "" : "disabled"}>${t("continue")}</button></section>`; document.querySelector("#e-prediction").addEventListener("change", (event) => { state.predictedEScore = event.target.value === "" ? null : Number(event.target.value); saveState(); document.querySelector("#mood-next").disabled = !Number.isInteger(state.predictedEScore); }); document.querySelector("#mood-next").addEventListener("click", () => { state.screen = "feedback"; saveState(); render(); }); }
-function renderFeedback() { const actualScore = state.currentTrial?.e ?? state.actualEScore ?? 5; app.innerHTML = `<header class="topbar"><span class="brand">🐾 ${t("title")}</span><span class="step-pill">${t("day")} ${studyDay()} · 3 / 3</span></header><section class="feedback-screen"><p class="eyebrow">${t("feedback")}</p>${puppy(state.puppyName, false, actualScore)}<div class="mood-reveal score-reveal"><span>${t("behaviorScore", { score: actualScore })}</span></div><button id="feedback-next" class="button button-primary button-wide">${t("continue")}</button></section>`; state.actualEScore = actualScore; saveState(); document.querySelector("#feedback-next").addEventListener("click", () => { state.screen = "imagine"; saveState(); render(); }); }
+function renderQuestion() { app.innerHTML = `<header class="topbar"><span class="brand">🐾 ${t("title")}</span><span class="step-pill">${t("day")} ${studyDay()} · 2 / ${isSurveyDay(studyDay()) ? 4 : 3}</span></header><section class="question-screen"><div class="mini-dog">${puppy(state.puppyName, true, 5)}</div><p class="eyebrow">${t("day")} ${studyDay()}</p><h1>${t("moodQuestion")}</h1><p class="question-subtitle">${t("choose")}</p><label class="score-input-card" for="e-prediction"><span>${t("scoreLabel")}</span><select id="e-prediction"><option value="">—</option>${Array.from({ length: 13 }, (_, score) => `<option value="${score}" ${state.predictedEScore === score ? "selected" : ""}>${score}</option>`).join("")}</select></label><button id="mood-next" class="button button-primary button-wide" ${Number.isInteger(state.predictedEScore) && state.predictedEScore >= 0 && state.predictedEScore <= 12 ? "" : "disabled"}>${t("continue")}</button></section>`; document.querySelector("#e-prediction").addEventListener("change", (event) => { state.predictedEScore = event.target.value === "" ? null : Number(event.target.value); saveState(); document.querySelector("#mood-next").disabled = !Number.isInteger(state.predictedEScore) || state.predictedEScore < 0 || state.predictedEScore > 12; }); document.querySelector("#mood-next").addEventListener("click", () => { state.screen = nextScreenAfterPrediction(studyDay()); saveState(); render(); }); }
+function renderSurvey() {
+ const day = studyDay();
+ if (!isSurveyDay(day)) { state.screen = "feedback"; return render(); }
+ const answers = state.surveyAnswers ||= {
+   foodAffectsE: null, foodEScore: null, foodComparisonLabel: null,
+   activityAffectsE: null, activityEScore: null, activityComparisonLabel: null
+ };
+ const renderChoices = (kind, question, options) => {
+   const affectKey = `${kind}AffectsE`;
+   const scoreKey = `${kind}EScore`;
+   const comparisonKey = `${kind}ComparisonLabel`;
+   const followup = surveyFollowupVisible(answers[affectKey]);
+   const comparisonQuestion = kind === "food" ? t("foodComparisonQuestion") : t("activityComparisonQuestion");
+   const scoreId = `${kind}-e-score`;
+   const comparisonId = `${kind}-comparison`;
+   return `<fieldset class="survey-question"><legend>${t(question)}</legend><div class="survey-answer-options"><label><input type="radio" name="${affectKey}" value="yes" ${answers[affectKey] === true ? "checked" : ""}> ${t("yes")}</label><label><input type="radio" name="${affectKey}" value="no" ${answers[affectKey] === false ? "checked" : ""}> ${t("noEffect")}</label></div>${followup ? `<label class="survey-field" for="${scoreId}"><span>${t("surveyScoreQuestion")}</span><select id="${scoreId}"><option value="">—</option>${Array.from({ length: 13 }, (_, score) => `<option value="${score}" ${answers[scoreKey] === score ? "selected" : ""}>${score}</option>`).join("")}</select></label><label class="survey-field" for="${comparisonId}"><span>${comparisonQuestion}</span><select id="${comparisonId}"><option value="">—</option>${options.map(({ label }) => `<option value="${escapeHtml(label)}" ${answers[comparisonKey] === label ? "selected" : ""}>${escapeHtml(label)}</option>`).join("")}</select></label>` : ""}</fieldset>`;
+ };
+ app.innerHTML = `<header class="topbar"><span class="brand">🐾 ${t("title")}</span><span class="step-pill">${t("day")} ${day} · 3 / 4</span></header><section class="survey-screen"><p class="eyebrow">${t("day")} ${day}</p><h1>${t("surveyTitle")}</h1><div class="survey-form">${renderChoices("food", "foodInfluenceQuestion", surveyOptions("food"))}${renderChoices("activity", "activityInfluenceQuestion", surveyOptions("activity"))}</div><button id="survey-next" class="button button-primary button-wide" ${isCompleteSurvey(day, answers) ? "" : "disabled"}>${t("surveyContinue")}</button></section>`;
+ document.querySelectorAll('input[name="foodAffectsE"], input[name="activityAffectsE"]').forEach((input) => input.addEventListener("change", (event) => {
+   const kind = event.target.name.startsWith("food") ? "food" : "activity";
+   const affects = event.target.value === "yes";
+   answers[`${kind}AffectsE`] = affects;
+   if (!affects) {
+     answers[`${kind}EScore`] = null;
+     answers[`${kind}ComparisonLabel`] = null;
+   }
+   saveState();
+   renderSurvey();
+   if (affects) document.querySelector(`#${kind}-e-score`)?.focus();
+   else document.querySelector(`input[name="${kind}AffectsE"][value="no"]`)?.focus();
+ }));
+ for (const kind of ["food", "activity"]) {
+   const scoreInput = document.querySelector(`#${kind}-e-score`);
+   const comparisonInput = document.querySelector(`#${kind}-comparison`);
+   scoreInput?.addEventListener("change", (event) => { answers[`${kind}EScore`] = event.target.value === "" ? null : Number(event.target.value); saveState(); renderSurvey(); document.querySelector(`#${kind}-e-score`)?.focus(); });
+   comparisonInput?.addEventListener("change", (event) => { answers[`${kind}ComparisonLabel`] = event.target.value || null; saveState(); renderSurvey(); document.querySelector(`#${kind}-comparison`)?.focus(); });
+ }
+ document.querySelector("#survey-next").addEventListener("click", () => {
+   if (!isCompleteSurvey(day, answers)) return;
+   state.screen = "feedback";
+   saveState();
+   render();
+ });
+}
+function renderFeedback() { const actualScore = state.currentTrial?.e ?? state.actualEScore ?? 5; app.innerHTML = `<header class="topbar"><span class="brand">🐾 ${t("title")}</span><span class="step-pill">${t("day")} ${studyDay()} · ${isSurveyDay(studyDay()) ? "4 / 4" : "3 / 3"}</span></header><section class="feedback-screen"><p class="eyebrow">${t("feedback")}</p>${puppy(state.puppyName, false, actualScore)}<div class="mood-reveal score-reveal"><span>${t("behaviorScore", { score: actualScore })}</span></div><button id="feedback-next" class="button button-primary button-wide">${t("continue")}</button></section>`; state.actualEScore = actualScore; saveState(); document.querySelector("#feedback-next").addEventListener("click", () => { state.screen = "imagine"; saveState(); render(); }); }
 function renderImagine() { app.innerHTML = `<section class="imagine-screen"><div class="imagine-puppy">${puppy(state.puppyName)}</div><p class="eyebrow">${t("imagine")}</p><h1>${t("imagineText", { name: escapeHtml(state.puppyName) })}</h1><div class="countdown" id="countdown">4</div><p>${t("seconds", { n: 4 })}</p></section>`; let n = 4; const iv = setInterval(() => { n--; const el = document.querySelector("#countdown"); if (el) el.textContent = n; if (n <= 0) { clearInterval(iv); state.screen = "complete"; saveState(); render(); } }, 1000); }
-function renderComplete() { app.innerHTML = `<section class="complete-screen"><div class="confetti">✦　✧　✦</div>${puppy(state.puppyName, true)}<p class="eyebrow">${t("day")} ${studyDay()}</p><h1>${t("complete")}</h1><p>${nextVisitText("complete", { name: escapeHtml(state.puppyName) })}</p><button id="finish-visit" class="button button-primary button-wide">${nextVisitText("done")}</button></section>`; document.querySelector("#finish-visit").addEventListener("click", async e => { const button = e.currentTarget; button.disabled = true; try { if (isPostgresTrial()) { if (!state.postgresParticipant) throw new Error("Start a new local trial with ?backend=postgres before submitting."); state.requestId ||= (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`); const result = await postgresRequest("responses", { participantId: state.participantId, studyDay: studyDay(), studyDate: state.currentTrial?.studyDate || todayKey(), predictedEScore: state.predictedEScore, interactions: { fed: Boolean(state.interactions?.fed), played: Boolean(state.interactions?.played), foodDurationMs: state.interactions?.foodDurationMs, activityDurationMs: state.interactions?.activityDurationMs }, requestId: state.requestId }); showToast(language === "zh" ? "试验记录已保存到本地数据库。" : language === "es" ? "Respuesta guardada en la base de datos local." : "Trial response saved to the local database."); if (result.autoAdvanced && result.nextStudyDay <= 24) { state.enrolledAt = result.enrolledAt || state.enrolledAt; state.completedToday = false; state.completedStudyDay = null; state.completedDate = null; state.screen = "activities"; state.prediction = null; state.predictedEScore = null; state.actualMood = null; state.actualEScore = null; state.currentTrial = null; state.interactions = { fed: false, played: false }; state.requestId = null; saveState(); render(); return; } } else if (hasFirebaseConfig() && state.firebaseUid) { state.requestId ||= (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`); await (await firebaseData()).submitDailyResponse({ studyDay: studyDay(), predictedEScore: state.predictedEScore, interactions: { fed: Boolean(state.interactions?.fed), played: Boolean(state.interactions?.played) }, requestId: state.requestId }); showToast(ac("saved")); } else if (hasFirebaseConfig()) { throw new Error(ac("saveFailed")); } state.completedToday = true; state.completedStudyDay = studyDay(); state.completedDate = studyPeriodKey(); state.screen = "home"; saveState(); render(); } catch (error) { console.error("Daily response was not confirmed", error); showToast(ac("saveFailed")); button.disabled = false; } }); }
+function renderComplete() {
+  app.innerHTML = `<section class="complete-screen"><div class="confetti">✦　✧　✦</div>${puppy(state.puppyName, true)}<p class="eyebrow">${t("day")} ${studyDay()}</p><h1>${t("complete")}</h1><p>${nextVisitText("complete", { name: escapeHtml(state.puppyName) })}</p><button id="finish-visit" class="button button-primary button-wide">${nextVisitText("done")}</button></section>`;
+  document.querySelector("#finish-visit").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    try {
+      if (isPostgresTrial()) {
+        if (!state.postgresParticipant) throw new Error("Start a new local trial with ?backend=postgres before submitting.");
+        state.requestId ||= crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+        const result = await postgresRequest("responses", {
+          participantId: state.participantId,
+          studyDay: studyDay(),
+          studyDate: state.currentTrial?.studyDate || todayKey(),
+          predictedEScore: state.predictedEScore,
+          interactions: {
+            fed: Boolean(state.interactions?.fed),
+            played: Boolean(state.interactions?.played),
+            foodDurationMs: state.interactions?.foodDurationMs,
+            activityDurationMs: state.interactions?.activityDurationMs
+          },
+          requestId: state.requestId
+        });
+        showToast(language === "zh" ? "试验记录已保存到本地数据库。" : language === "es" ? "Respuesta guardada en la base de datos local." : "Trial response saved to the local database.");
+        if (result.autoAdvanced && result.nextStudyDay <= 24) {
+          state.enrolledAt = result.enrolledAt || state.enrolledAt;
+          state.completedToday = false;
+          state.completedStudyDay = null;
+          state.completedDate = null;
+          state.screen = "activities";
+          state.prediction = null;
+          state.predictedEScore = null;
+          state.actualMood = null;
+          state.actualEScore = null;
+          state.surveyAnswers = null;
+          state.currentTrial = null;
+          state.interactions = { fed: false, played: false };
+          state.requestId = null;
+          saveState();
+          render();
+          return;
+        }
+      } else if (hasFirebaseConfig() && state.firebaseUid) {
+        state.requestId ||= crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+        await (await firebaseData()).submitDailyResponse({
+          studyDay: studyDay(),
+          predictedEScore: state.predictedEScore,
+          interactions: { fed: Boolean(state.interactions?.fed), played: Boolean(state.interactions?.played) },
+          requestId: state.requestId
+        });
+        showToast(ac("saved"));
+      } else if (hasFirebaseConfig()) {
+        throw new Error(ac("saveFailed"));
+      }
+      state.completedToday = true;
+      state.completedStudyDay = studyDay();
+      state.completedDate = studyPeriodKey();
+      state.screen = "home";
+      saveState();
+      render();
+    } catch (error) {
+      console.error("Daily response was not confirmed", error);
+      showToast(error.message || ac("saveFailed"));
+      button.disabled = false;
+    }
+  });
+}
 function renderLocked() {
   app.innerHTML = `<header class="topbar"><span class="brand">🐾 ${t("title")}</span>${languagePicker()}</header><section class="locked-screen">${puppy(state.puppyName, true)}<div class="locked-message"><h1>${nextVisitText("lockedTitle", { name: escapeHtml(state.puppyName) })}</h1><p>${nextVisitText("lockedBody", { name: escapeHtml(state.puppyName) })}</p></div><button id="acknowledge" class="button button-primary button-wide">${t("close")}</button>${isPostgresTrial() ? `<button id="manage-recovery-code" class="text-button">${ac("manageCode")}</button>` : ``}<button id="new-participant" class="text-button">${t("nameEdit")}</button></section>`;
   bindLanguage(); startIdleCycle(); document.querySelector("#acknowledge").addEventListener("click", () => { document.querySelector(".locked-message").classList.add("dismissed"); document.querySelector("#acknowledge").remove(); });
@@ -368,7 +552,7 @@ function renderRecoverySetup() {
 function renderRecoveryLogin() {
   app.innerHTML = `<section class="recovery-screen"><p class="eyebrow">${t("title")}</p><h1>${ac("recoverTitle")}</h1><form id="recovery-form"><label for="recovery-code">${ac("codeLabel")}</label><input id="recovery-code" autocomplete="one-time-code" required /><button class="button button-primary button-wide" type="submit">${ac("restore")}</button></form><button id="back-to-welcome" class="text-button">${t("begin")}</button></section>`;
   document.querySelector("#back-to-welcome").addEventListener("click", renderOnboarding);
-  document.querySelector("#recovery-form").addEventListener("submit", async e => { e.preventDefault(); const button = e.currentTarget.querySelector("button"); button.disabled = true; try { if (isPostgresTrial()) { const response = await fetch("/api/participants/recover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recoveryCode: document.querySelector("#recovery-code").value }) }); const profile = await response.json(); if (!response.ok) throw new Error(profile.error || ac("saveFailed")); state = { participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, puppyName: profile.puppyName, language, screen: "recovery-setup", environmentIntroSeen: true, completedToday: profile.completedToday, completedDate: profile.completedStudyDay ? `block-${profile.completedStudyDay}` : profile.completedDate ? `date-${profile.completedDate}` : null, completedStudyDay: profile.completedStudyDay, enrolledDate: profile.enrolledDate, enrolledAt: profile.enrolledAt || null, studyDayMinutes: profile.studyDayMinutes || DEFAULT_STUDY_DAY_MINUTES, interactions: { fed: false, played: false } }; pendingRecoveryCode = profile.recoveryCode; } else { const profile = await (await firebaseData()).recoverParticipant(document.querySelector("#recovery-code").value); state = { participantId: profile.uid, firebaseUid: profile.uid, puppyName: profile.puppyName, language, screen: "home", environmentIntroSeen: true, completedToday: profile.lastSubmittedDate === todayKey(), completedDate: profile.lastSubmittedDate, enrolledDate: profile.enrolledOn, interactions: { fed: false, played: false }, nextStudyDay: profile.nextStudyDay }; } saveState(); render(); } catch (error) { showToast(error.message || ac("saveFailed")); button.disabled = false; } });
+  document.querySelector("#recovery-form").addEventListener("submit", async e => { e.preventDefault(); const button = e.currentTarget.querySelector("button"); button.disabled = true; try {     if (isPostgresTrial()) { const response = await fetch("/api/participants/recover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recoveryCode: document.querySelector("#recovery-code").value }) }); const profile = await response.json(); if (!response.ok) throw new Error(profile.error || ac("saveFailed"));   state = { participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, puppyName: profile.puppyName, language, screen: "recovery-setup", environmentIntroSeen: true, completedToday: profile.completedToday, completedDate: profile.completedToday ? (profile.studyDayMinutes < DEFAULT_STUDY_DAY_MINUTES ? `block-${profile.completedStudyDay}` : `date-${todayKey()}`) : null, completedStudyDay: profile.completedStudyDay, enrolledDate: profile.enrolledDate, enrolledAt: profile.enrolledAt || null, studyDayMinutes: profile.studyDayMinutes || DEFAULT_STUDY_DAY_MINUTES, interactions: { fed: false, played: false } }; pendingRecoveryCode = profile.recoveryCode; } else { const profile = await (await firebaseData()).recoverParticipant(document.querySelector("#recovery-code").value); const completedToday = profile.lastSubmittedDate === todayKey(); state = { participantId: profile.uid, firebaseUid: profile.uid, puppyName: profile.puppyName, language, screen: "home", environmentIntroSeen: true, completedToday, completedDate: completedToday ? `date-${todayKey()}` : null, enrolledDate: profile.enrolledOn, interactions: { fed: false, played: false }, nextStudyDay: profile.nextStudyDay }; } saveState(); render(); } catch (error) { showToast(error.message || ac("saveFailed")); button.disabled = false; } });
 }
 async function resumeFirebaseParticipant() {
   if (isPostgresTrial()) return;
@@ -382,7 +566,8 @@ async function resumeFirebaseParticipant() {
       pendingRecoveryCode = profile.recoveryCode; saveState(); render(); return;
     }
     const profile = await api.resumeParticipant(); if (!profile) return;
-    state = { participantId: profile.uid, firebaseUid: profile.uid, puppyName: profile.puppyName, language, screen: "home", environmentIntroSeen: true, completedToday: profile.lastSubmittedDate === todayKey(), completedDate: profile.lastSubmittedDate, enrolledDate: profile.enrolledOn, interactions: { fed: false, played: false }, nextStudyDay: profile.nextStudyDay };
+    const completedToday = profile.lastSubmittedDate === todayKey();
+    state = { participantId: profile.uid, firebaseUid: profile.uid, puppyName: profile.puppyName, language, screen: "home", environmentIntroSeen: true, completedToday, completedDate: completedToday ? `date-${todayKey()}` : null, enrolledDate: profile.enrolledOn, interactions: { fed: false, played: false }, nextStudyDay: profile.nextStudyDay };
     saveState(); render();
   } catch (error) { console.error("Could not resume participant", error); }
 }
@@ -393,7 +578,8 @@ async function resumePostgresParticipant() {
       ...(state.localOnly && state.participantId ? { participantId: state.participantId } : {}),
       puppyName: state.puppyName
     });
-    state = { ...state, participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: profile.recoveryCode ? "recovery-setup" : "home", environmentIntroSeen: true, enrolledDate: profile.enrolledDate || todayKey(), enrolledAt: profile.enrolledAt || null, studyDayMinutes: profile.studyDayMinutes || DEFAULT_STUDY_DAY_MINUTES, completedToday: false, completedDate: null, completedStudyDay: null, prediction: null, predictedEScore: null, actualMood: null, actualEScore: null, currentTrial: null, requestId: null, interactions: { fed: false, played: false }, localOnly: true };
+    const profileStudyDayMinutes = profile.studyDayMinutes || DEFAULT_STUDY_DAY_MINUTES;
+    state = { ...state, participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: profile.recoveryCode ? "recovery-setup" : "home", environmentIntroSeen: true, enrolledDate: profile.enrolledDate || todayKey(), enrolledAt: profile.enrolledAt || null, studyDayMinutes: profileStudyDayMinutes, completedToday: profile.completedToday, completedDate: profile.completedToday ? (profileStudyDayMinutes < DEFAULT_STUDY_DAY_MINUTES ? `block-${profile.completedStudyDay}` : `date-${todayKey()}`) : null, completedStudyDay: profile.completedStudyDay, prediction: null, predictedEScore: null, actualMood: null, actualEScore: null, surveyAnswers: null, currentTrial: null, requestId: null, interactions: { fed: false, played: false }, localOnly: true };
     pendingRecoveryCode = profile.recoveryCode;
     saveState(); render();
   } catch (error) {
@@ -416,15 +602,6 @@ if (isPostgresTrial() && state?.puppyName && (!state.postgresParticipant || !sta
 
 
 resumeFirebaseParticipant();
-
-
-
-
-
-
-
-
-
 
 
 

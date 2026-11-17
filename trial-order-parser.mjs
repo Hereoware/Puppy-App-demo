@@ -37,8 +37,8 @@ export function parseTrialOrderCsv(text) {
     const code = get("version");
     if (!code) continue;
     const trial = { day: Number(get("day")), t: Number(get("t")), a: Number(get("a")), e: Number(get("e")), tLabel: get("tLabel"), aLabel: get("aLabel") };
-    if (!Number.isInteger(trial.day) || trial.day < 1 || trial.day > 24 || ![0, 1].includes(trial.t) || ![0, 1].includes(trial.a) || !Number.isInteger(trial.e) || trial.e < -1 || trial.e > 10 || !trial.tLabel || !trial.aLabel) {
-      throw new Error(`${code} 有无效数据：T/A 应为 0 或 1，E 应为 -1 到 10 的整数，每天需要标签。`);
+    if (!Number.isInteger(trial.day) || trial.day < 1 || trial.day > 24 || ![0, 1].includes(trial.t) || ![0, 1].includes(trial.a) || !Number.isInteger(trial.e) || trial.e < 0 || trial.e > 12 || !trial.tLabel || !trial.aLabel) {
+      throw new Error(`${code} 有无效数据：T/A 应为 0 或 1，E 应为 0 到 12 的整数，每天需要标签。`);
     }
     if (!grouped.has(code)) grouped.set(code, []);
     grouped.get(code).push(trial);

@@ -9,6 +9,7 @@ const db = admin.firestore();
 const { FieldValue } = require("firebase-admin/firestore");
 const STUDY_TIME_ZONE = "America/New_York";
 const MAX_STUDY_DAYS = 24;
+const SURVEY_DAYS = new Set([8, 16, 24]);
 
 function requireAuth(request) {
   if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Participant sign-in is required.");
@@ -120,12 +121,32 @@ exports.recoverParticipant = onCall(async (request) => {
 
 exports.submitDailyResponse = onCall(async (request) => {
   const uid = requireAuth(request);
-  const { studyDay, predictedEScore, interactions, requestId } = request.data || {};
+  const { studyDay, predictedEScore, interactions, requestId, survey } = request.data || {};
   if (!Number.isInteger(studyDay) || studyDay < 1 || studyDay > MAX_STUDY_DAYS) {
     throw new HttpsError("invalid-argument", "Invalid study day.");
   }
-  if (!Number.isInteger(predictedEScore) || predictedEScore < -1 || predictedEScore > 10) {
-    throw new HttpsError("invalid-argument", "Predicted E score must be an integer from -1 to 10.");
+  if (!Number.isInteger(predictedEScore) || predictedEScore < 0 || predictedEScore > 12) {
+    throw new HttpsError("invalid-argument", "Predicted E score must be an integer from 0 to 12.");
+  }
+  if (SURVEY_DAYS.has(studyDay)) {
+    if (!survey || typeof survey !== "object") {
+      throw new HttpsError("invalid-argument", "The day 8, 16, or 24 questionnaire is required before completing the day.");
+    }
+    for (const [kind, label] of [["food", "Food"], ["activity", "Activity"]]) {
+      const affects = survey[`${kind}AffectsE`];
+      if (typeof affects !== "boolean") {
+        throw new HttpsError("invalid-argument", `${label}: answer whether it affects E.`);
+      }
+      if (affects && (!Number.isInteger(survey[`${kind}EScore`]) || survey[`${kind}EScore`] < 0 || survey[`${kind}EScore`] > 12
+        || typeof survey[`${kind}ComparisonLabel`] !== "string" || !survey[`${kind}ComparisonLabel`].trim())) {
+        throw new HttpsError("invalid-argument", `${label}: when you answer yes, provide an E score from 0 to 12 and choose a comparison option.`);
+      }
+      if (!affects && (survey[`${kind}EScore`] !== undefined || survey[`${kind}ComparisonLabel`] !== undefined)) {
+        throw new HttpsError("invalid-argument", `${label}: E score and comparison must be omitted when you answer no effect.`);
+      }
+    }
+  } else if (survey !== undefined) {
+    throw new HttpsError("invalid-argument", "The questionnaire is only available on study days 8, 16, and 24.");
   }
   if (typeof requestId !== "string" || requestId.length < 8 || requestId.length > 80) {
     throw new HttpsError("invalid-argument", "Invalid submission identifier.");
@@ -166,6 +187,12 @@ exports.submitDailyResponse = onCall(async (request) => {
       studyDay,
       studyDate: today,
       predictedEScore,
+      foodAffectsE: survey?.foodAffectsE ?? null,
+      foodEScore: survey?.foodAffectsE ? survey.foodEScore : null,
+      foodComparisonLabel: survey?.foodAffectsE ? survey.foodComparisonLabel : null,
+      activityAffectsE: survey?.activityAffectsE ?? null,
+      activityEScore: survey?.activityAffectsE ? survey.activityEScore : null,
+      activityComparisonLabel: survey?.activityAffectsE ? survey.activityComparisonLabel : null,
       interactions: { fed: interactions.fed, played: interactions.played },
       requestId,
       createdAt: FieldValue.serverTimestamp(),
@@ -181,6 +208,5 @@ exports.submitDailyResponse = onCall(async (request) => {
   });
   return result;
 });
-
 
 

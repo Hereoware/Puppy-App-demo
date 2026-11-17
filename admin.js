@@ -38,7 +38,7 @@ const translations = {
     back: "← Back to Puppy Day",
     eyebrow: "Researcher Tools",
     adminTitle: "Trial Order Admin",
-    adminIntro: "Upload the CSV exported from the <strong>AllVersions</strong> worksheet in Excel. Each version must contain days 1–24; new participants are randomly assigned to one version from the currently active set.",
+    adminIntro: "Upload the CSV exported from the <strong>AllVersions</strong> worksheet in Excel. Each version must contain days 1–24; new participants are balanced across active HIT-T, HIT-A, and LIT study groups, then randomly assigned a version within their group.",
     warningTitle: "Research test platform:",
     warningText: "Sign in with the researcher password. Before deployment, complete IRB, data-handling, and access reviews; do not enter real participant data without approval.",
     loginTitle: "Researcher Sign In",
@@ -85,6 +85,12 @@ const translations = {
     responsesHeadA: "A",
     responsesHeadFed: "Fed",
     responsesHeadPlayed: "Played",
+    responsesHeadFoodAffectsE: "Food affects E",
+    responsesHeadFoodE: "Food E level",
+    responsesHeadFoodComparison: "Food with greater effect",
+    responsesHeadActivityAffectsE: "Activity affects E",
+    responsesHeadActivityE: "Activity E level",
+    responsesHeadActivityComparison: "Activity with greater effect",
     loginExpired: "Your sign-in expired. Please sign in again.",
     loggingIn: "Signing in…",
     loginFailed: "Sign-in failed.",
@@ -139,7 +145,7 @@ const translations = {
     back: "← 返回 Puppy Day",
     eyebrow: "研究者工具",
     adminTitle: "Trial Order 管理",
-    adminIntro: "上传 Excel 中 <strong>AllVersions</strong> 工作表另存的 CSV。每个版本必须包含第 1–24 天；新参与者会从当前启用版本组中的一个版本里被随机分配。",
+    adminIntro: "上传 Excel 中 <strong>AllVersions</strong> 工作表另存的 CSV。每个版本必须包含第 1–24 天；新参与者会在启用的 HIT-T、HIT-A 和 LIT 组之间均衡分配，再随机分配该组内的版本。",
     warningTitle: "研究测试平台：",
     warningText: "使用研究者密码登录。部署上线前请完成 IRB、数据处理和访问权限审核；不要在未经批准的情况下录入真实参与者数据。",
     loginTitle: "研究者登录",
@@ -186,6 +192,12 @@ const translations = {
     responsesHeadA: "A",
     responsesHeadFed: "喂食",
     responsesHeadPlayed: "玩耍",
+    responsesHeadFoodAffectsE: "食物影响 E",
+    responsesHeadFoodE: "食物对应的 E 水平",
+    responsesHeadFoodComparison: "影响更大的食物",
+    responsesHeadActivityAffectsE: "活动影响 E",
+    responsesHeadActivityE: "活动对应的 E 水平",
+    responsesHeadActivityComparison: "影响更大的活动",
     loginExpired: "登录已失效，请重新登录。",
     loggingIn: "正在登录…",
     loginFailed: "登录失败。",
@@ -240,7 +252,7 @@ const translations = {
     back: "← Volver a Puppy Day",
     eyebrow: "Herramientas para investigación",
     adminTitle: "Administración de Trial Orders",
-    adminIntro: "Sube el CSV exportado desde la hoja <strong>AllVersions</strong> de Excel. Cada versión debe incluir los días 1–24; a cada participante nuevo se le asigna aleatoriamente una versión del conjunto activo.",
+    adminIntro: "Sube el CSV exportado desde la hoja <strong>AllVersions</strong> de Excel. Cada versión debe incluir los días 1–24; los participantes nuevos se distribuyen de forma equilibrada entre los grupos activos HIT-T, HIT-A y LIT, y luego reciben una versión aleatoria de su grupo.",
     warningTitle: "Plataforma de prueba de investigación:",
     warningText: "Inicia sesión con la contraseña del investigador. Antes de desplegar, completa las revisiones de IRB, manejo de datos y acceso; no ingreses datos reales de participantes sin aprobación.",
     loginTitle: "Inicio de sesión del investigador",
@@ -287,6 +299,12 @@ const translations = {
     responsesHeadA: "A",
     responsesHeadFed: "Alimentado",
     responsesHeadPlayed: "Jugó",
+    responsesHeadFoodAffectsE: "La comida afecta E",
+    responsesHeadFoodE: "Nivel E de la comida",
+    responsesHeadFoodComparison: "Alimento con mayor efecto",
+    responsesHeadActivityAffectsE: "La actividad afecta E",
+    responsesHeadActivityE: "Nivel E de la actividad",
+    responsesHeadActivityComparison: "Actividad con mayor efecto",
     loginExpired: "La sesión expiró. Inicia sesión de nuevo.",
     loggingIn: "Iniciando sesión…",
     loginFailed: "No se pudo iniciar sesión.",
@@ -363,8 +381,9 @@ function statusLabel(status) {
   return status || "";
 }
 function groupLabel(value) {
-  if (value === "TREATMENT") return currentLanguage === "zh" ? "Treatment 组" : currentLanguage === "es" ? "Tratamiento" : "Treatment";
-  if (value === "CONTROL") return currentLanguage === "zh" ? "Control 组" : currentLanguage === "es" ? "Control" : "Control";
+  if (value === "HIT_T") return currentLanguage === "zh" ? "HIT-T（治疗组 1）" : currentLanguage === "es" ? "HIT-T (Tratamiento 1)" : "HIT-T (Treatment 1)";
+  if (value === "HIT_A") return currentLanguage === "zh" ? "HIT-A（治疗组 2）" : currentLanguage === "es" ? "HIT-A (Tratamiento 2)" : "HIT-A (Treatment 2)";
+  if (value === "LIT") return currentLanguage === "zh" ? "LIT（对照组）" : currentLanguage === "es" ? "LIT (Control)" : "LIT (Control)";
   return t("unassigned");
 }
 function groupFieldLabel() {
@@ -374,11 +393,11 @@ function participantGroupHeader() {
   return currentLanguage === "zh" ? "分组" : currentLanguage === "es" ? "Grupo asignado" : "Assigned Group";
 }
 function participantCountLabel(group) {
-  if (group === "TREATMENT") return currentLanguage === "zh" ? "Treatment 人数" : currentLanguage === "es" ? "Participantes en tratamiento" : "Treatment Count";
-  return currentLanguage === "zh" ? "Control 人数" : currentLanguage === "es" ? "Participantes en control" : "Control Count";
+  const label = groupLabel(group);
+  return currentLanguage === "zh" ? `${label} 人数` : currentLanguage === "es" ? `Participantes: ${label}` : `${label} Count`;
 }
 function participantDifferenceLabel() {
-  return currentLanguage === "zh" ? "组间差值" : currentLanguage === "es" ? "Diferencia entre grupos" : "Group Difference";
+  return currentLanguage === "zh" ? "组间人数差距" : currentLanguage === "es" ? "Diferencia entre grupos" : "Group count range";
 }
 function participantDifferenceNote(diff) {
   if (diff === 0) return currentLanguage === "zh" ? "目前完全平衡" : currentLanguage === "es" ? "Actualmente equilibrado" : "Currently balanced";
@@ -426,8 +445,9 @@ function applyTranslations(previousLanguage = null) {
   setText("order-name-label", t("orderNameLabel"));
   setText("order-category-label", t("orderCategoryLabel"));
   setText("order-group-label", groupFieldLabel());
-  setText("order-group-treatment", groupLabel("TREATMENT"));
-  setText("order-group-control", groupLabel("CONTROL"));
+  setText("order-group-hit-t", groupLabel("HIT_T"));
+  setText("order-group-hit-a", groupLabel("HIT_A"));
+  setText("order-group-lit", groupLabel("LIT"));
   setText("upload-help", t("uploadHelp"));
   setText("import-order", t("importButton"));
   setText("participants-title", t("participantsTitle"));
@@ -460,6 +480,12 @@ function applyTranslations(previousLanguage = null) {
   setText("responses-head-a", t("responsesHeadA"));
   setText("responses-head-fed", t("responsesHeadFed"));
   setText("responses-head-played", t("responsesHeadPlayed"));
+  setText("responses-head-food-affects-e", t("responsesHeadFoodAffectsE"));
+  setText("responses-head-food-e", t("responsesHeadFoodE"));
+  setText("responses-head-food-comparison", t("responsesHeadFoodComparison"));
+  setText("responses-head-activity-affects-e", t("responsesHeadActivityAffectsE"));
+  setText("responses-head-activity-e", t("responsesHeadActivityE"));
+  setText("responses-head-activity-comparison", t("responsesHeadActivityComparison"));
   adminPasswordInput.setAttribute("aria-label", t("passwordLabel"));
   categoryInput.placeholder = t("orderCategoryPlaceholder");
 
@@ -473,7 +499,7 @@ function applyTranslations(previousLanguage = null) {
     responsesStatus.textContent = t("responsesStatusIdle");
   }
   if (!savedParticipants.length && !sessionStorage.getItem(ADMIN_TOKEN_KEY)) participantsTableBody.innerHTML = `<tr><td colspan="7">${escapeText(t("noParticipantsLoaded"))}</td></tr>`;
-  if (!savedResponses.length && !sessionStorage.getItem(ADMIN_TOKEN_KEY)) responsesTableBody.innerHTML = `<tr><td colspan="14">${escapeText(t("noResponsesLoaded"))}</td></tr>`;
+  if (!savedResponses.length && !sessionStorage.getItem(ADMIN_TOKEN_KEY)) responsesTableBody.innerHTML = `<tr><td colspan="20">${escapeText(t("noResponsesLoaded"))}</td></tr>`;
   refreshCategoryFilter();
   renderOrders();
   renderResponses();
@@ -703,20 +729,17 @@ async function loadParticipants() {
 function renderParticipantGroupSummary() {
   const counts = savedParticipants.reduce((summary, row) => {
     const group = effectiveAssignedGroup(row);
-    if (group === "TREATMENT") summary.treatment += 1;
-    if (group === "CONTROL") summary.control += 1;
+    if (Object.prototype.hasOwnProperty.call(summary, group)) summary[group] += 1;
     return summary;
-  }, { treatment: 0, control: 0 });
-  const diff = Math.abs(counts.treatment - counts.control);
+  }, { HIT_T: 0, HIT_A: 0, LIT: 0 });
+  const activeGroups = new Set(savedOrders.filter((set) => set.active).map((set) => set.assignmentGroup));
+  const groupCounts = (activeGroups.size ? [...activeGroups] : Object.keys(counts)).map((group) => counts[group]);
+  const diff = Math.max(...groupCounts) - Math.min(...groupCounts);
   participantGroupSummary.innerHTML = `
-    <div class="group-summary-card">
-      <span class="group-summary-label">${escapeText(participantCountLabel("TREATMENT"))}</span>
-      <span class="group-summary-value">${counts.treatment}</span>
-    </div>
-    <div class="group-summary-card">
-      <span class="group-summary-label">${escapeText(participantCountLabel("CONTROL"))}</span>
-      <span class="group-summary-value">${counts.control}</span>
-    </div>
+    ${Object.entries(counts).map(([group, count]) => `<div class="group-summary-card">
+      <span class="group-summary-label">${escapeText(participantCountLabel(group))}</span>
+      <span class="group-summary-value">${count}</span>
+    </div>`).join("")}
     <div class="group-summary-card">
       <span class="group-summary-label">${escapeText(participantDifferenceLabel())}</span>
       <span class="group-summary-value">${diff}</span>
@@ -743,7 +766,7 @@ function renderParticipants() {
 
 function renderResponses() {
   if (!savedResponses.length) {
-    responsesTableBody.innerHTML = `<tr><td colspan="14">${escapeText(sessionStorage.getItem(ADMIN_TOKEN_KEY) ? t("noResponseRows") : t("noResponsesLoaded"))}</td></tr>`;
+    responsesTableBody.innerHTML = `<tr><td colspan="20">${escapeText(sessionStorage.getItem(ADMIN_TOKEN_KEY) ? t("noResponseRows") : t("noResponsesLoaded"))}</td></tr>`;
     return;
   }
   responsesTableBody.innerHTML = savedResponses.map(row => `<tr>
@@ -759,6 +782,12 @@ function renderResponses() {
     <td>${escapeText(row.actualEScore ?? "")}</td>
     <td>${escapeText(row.tValue ?? "")}</td>
     <td>${escapeText(row.aValue ?? "")}</td>
+    <td>${row.foodAffectsE === null || row.foodAffectsE === undefined ? "" : escapeText(row.foodAffectsE ? t("yes") : t("no"))}</td>
+    <td>${escapeText(row.foodEScore ?? "")}</td>
+    <td>${escapeText(row.foodComparisonLabel ?? "")}</td>
+    <td>${row.activityAffectsE === null || row.activityAffectsE === undefined ? "" : escapeText(row.activityAffectsE ? t("yes") : t("no"))}</td>
+    <td>${escapeText(row.activityEScore ?? "")}</td>
+    <td>${escapeText(row.activityComparisonLabel ?? "")}</td>
     <td>${row.fed ? escapeText(t("yes")) : escapeText(t("no"))}</td>
     <td>${row.played ? escapeText(t("yes")) : escapeText(t("no"))}</td>
   </tr>`).join("");
@@ -769,6 +798,8 @@ function exportResponsesCsv() {
     ["participantId", "Participant ID"], ["puppyName", "Puppy name"], ["assignedGroup", "Assigned group"], ["assignedVersion", "Assigned version"], ["studyDate", "Study date"],
     ["studyDay", "Study day"], ["moodPrediction", "Predicted mood"], ["actualMood", "Actual mood"],
     ["predictedEScore", "Predicted E"], ["actualEScore", "Actual E"], ["tValue", "T"], ["aValue", "A"],
+    ["foodAffectsE", "Food affects E"], ["foodEScore", "Food E level"], ["foodComparisonLabel", "Food with greater effect"],
+    ["activityAffectsE", "Activity affects E"], ["activityEScore", "Activity E level"], ["activityComparisonLabel", "Activity with greater effect"],
     ["tLabel", "T label"], ["aLabel", "A label"], ["fed", "Fed"], ["played", "Played"],
     ["foodDurationMs", "Food interaction duration (ms)"], ["activityDurationMs", "Activity interaction duration (ms)"],
     ["createdAt", "Submitted at"]
@@ -778,10 +809,11 @@ function exportResponsesCsv() {
   for (const row of savedResponses) {
     const values = columns.map(([key]) => {
       if (key === "puppyName") return row.participant?.puppyName;
-      if (key === "assignedGroup") return effectiveAssignedGroup(row) || "";
+      if (key === "assignedGroup") return groupLabel(effectiveAssignedGroup(row)) === t("unassigned") ? "" : groupLabel(effectiveAssignedGroup(row));
       if (key === "assignedVersion") return row.participant?.assignedVersion?.code || "";
       if (key === "fed") return row.fed ? "true" : "false";
       if (key === "played") return row.played ? "true" : "false";
+      if (key === "foodAffectsE" || key === "activityAffectsE") return row[key] == null ? "" : String(row[key]);
       return row[key];
     });
     lines.push(values.map(csvCell).join(","));

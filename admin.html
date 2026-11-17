@@ -53,8 +53,9 @@
         <input id="order-category" maxlength="80" required />
         <label id="order-group-label" for="order-group">Study Group</label>
         <select id="order-group">
-          <option id="order-group-treatment" value="TREATMENT">Treatment</option>
-          <option id="order-group-control" value="CONTROL">Control</option>
+          <option id="order-group-hit-t" value="HIT_T">HIT-T (Treatment 1)</option>
+          <option id="order-group-hit-a" value="HIT_A">HIT-A (Treatment 2)</option>
+          <option id="order-group-lit" value="LIT">LIT (Control)</option>
         </select>
         <p id="upload-help" class="admin-help">The CSV must contain the columns: version, day, T, A, E, T_label, A_label. In Excel, choose the AllVersions worksheet and save it as a UTF-8 CSV.</p>
         <div id="upload-preview" class="admin-preview" hidden></div>
@@ -99,9 +100,12 @@
             <thead><tr>
               <th id="responses-head-id">Participant ID</th><th id="responses-head-name">Puppy Name</th><th id="responses-head-group">Assigned Group</th><th id="responses-head-version">Assigned Version</th><th id="responses-head-date">Date</th><th id="responses-head-day">Day</th>
               <th id="responses-head-pred-mood">Predicted Mood</th><th id="responses-head-actual-mood">Actual Mood</th><th id="responses-head-pred-e">Predicted E</th><th id="responses-head-actual-e">Actual E</th>
-              <th id="responses-head-t">T</th><th id="responses-head-a">A</th><th id="responses-head-fed">Fed</th><th id="responses-head-played">Played</th>
+              <th id="responses-head-t">T</th><th id="responses-head-a">A</th>
+              <th id="responses-head-food-affects-e">Food affects E</th><th id="responses-head-food-e">Food E level</th><th id="responses-head-food-comparison">Food with greater effect</th>
+              <th id="responses-head-activity-affects-e">Activity affects E</th><th id="responses-head-activity-e">Activity E level</th><th id="responses-head-activity-comparison">Activity with greater effect</th>
+              <th id="responses-head-fed">Fed</th><th id="responses-head-played">Played</th>
             </tr></thead>
-            <tbody id="responses-table-body"><tr><td colspan="14">No responses loaded yet.</td></tr></tbody>
+            <tbody id="responses-table-body"><tr><td colspan="20">No responses loaded yet.</td></tr></tbody>
           </table>
         </div>
       </section>

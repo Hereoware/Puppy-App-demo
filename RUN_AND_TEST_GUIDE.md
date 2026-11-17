@@ -166,7 +166,11 @@ After login, you should see the trial-order upload and current trial-order list.
 
 The signed-in researcher page also lets you filter sets by category, change a set's name/category, or activate an older set for **new participants**. Existing participants keep their assigned version. A set cannot be deleted while it is active or while any participants are assigned to one of its versions; activate a different set first, and preserve assigned sets so participant records remain interpretable.
 
-The importer expects the columns `version`, `day`, `T`, `A`, `E`, `T_label`, and `A_label`. Each version must contain days 1–24 once; T and A must be 0 or 1; E must be an integer from -1 to 10.
+Trial-order sets are assigned to one of three study groups: **HIT-T (Treatment 1)**, **HIT-A (Treatment 2)**, or **LIT (Control)**. New participants are balanced across groups that currently have an active set, then randomly assigned a version from that group. The database migration maps existing `TREATMENT` sets/participants to HIT-T and `CONTROL` to LIT; upload and activate a HIT-A set when it is ready.
+
+Local `npm run dev` applies pending Prisma migrations before starting the API. Render applies the same migrations from the shared Docker image at startup, so both environments use the same schema change.
+
+The importer expects the columns `version`, `day`, `T`, `A`, `E`, `T_label`, and `A_label`. Each version must contain days 1–24 once; T and A must be 0 or 1; E must be an integer from 0 to 12. Existing trial files are not converted automatically and must be updated manually before upload.
 
 The CSV is a local file selection; it does not need to be copied into the Docker container or committed to GitHub. A successful upload activates this order set for **new participants**. Participants already enrolled keep their existing assigned version.
 
@@ -184,7 +188,7 @@ Do not use the `file:///.../index.html` preview or the GitHub Pages URL for this
 2. Save the recovery code shown after enrollment. It is needed to restore this participant later. When you restore with the code, the server rotates it and shows a replacement code; save the new code too.
 3. Continue through the environment introduction.
 4. Complete both interactions: move the food into the bowl and complete the activity. Each interaction is designed to take about eight seconds.
-5. Select a predicted E score from -1 to 10, continue through the displayed outcome, and finish the visit.
+5. Select a predicted E score from 0 to 12, continue through the displayed outcome, and finish the visit. On days 8, 16, and 24, answer the questionnaire before the outcome is shown.
 6. Confirm that the app shows today’s visit as complete. Refresh the page or reopen the same URL: it should remain locked for today.
 
 The server assigns a trial-order version randomly at enrollment and only returns the trial for the participant’s current study day. The local server uses the actual calendar date; there is no “next day” simulation button in this database flow. To check a fresh enrollment on Day 1, use a new private/incognito browser window and create a separate test participant. Do not edit database dates to imitate a participant.
