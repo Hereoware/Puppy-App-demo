@@ -5,7 +5,7 @@ import { createHash, randomBytes, randomInt, timingSafeEqual } from "node:crypto
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { bearerSession, issueSession, requireAdmin, requireParticipant } from "./lib/auth.js";
-import { saveDailyResponse } from "./lib/daily-response-store.js";
+import { saveScheduledResponse } from "./lib/scheduled-response-store.js";
 import { prisma } from "./lib/prisma.js";
 import { importedTrialSchema, responseSchema } from "./lib/response-schema.js";
 import { chooseBalancedStudyGroup, STUDY_GROUPS } from "./lib/study-groups.js";
@@ -33,7 +33,7 @@ app.use(express.json({ limit: "2mb" }));
 // Serve only the app's public files. Do not expose backend source, .env, or node_modules.
 app.get("/", (_request, response) => response.sendFile(path.join(projectRoot, "index.html")));
 app.get("/admin", (_request, response) => response.sendFile(path.join(projectRoot, "admin.html")));
-for (const filename of ["app.js", "admin.js", "trial-order-parser.mjs", "study-days.mjs", "styles.css", "firebase-config.js", "firebase-data.js", "manifest.webmanifest", "manifest-short.webmanifest", "service-worker.js"]) {
+for (const filename of ["app.js", "admin.js", "trial-order-parser.mjs", "study-days.mjs", "participant-schedule.mjs", "styles.css", "firebase-config.js", "firebase-data.js", "manifest.webmanifest", "manifest-short.webmanifest", "service-worker.js"]) {
   app.get(`/${filename}`, (_request, response) => response.sendFile(path.join(projectRoot, filename)));
 }
 app.use("/icons", express.static(path.join(projectRoot, "icons"), { dotfiles: "deny", index: false }));
@@ -357,6 +357,7 @@ app.post("/api/participants", limitEnrollment, async (request, response) => {
     enrolledAt: participant.enrolledAt.toISOString(),
     studyDayMinutes: schedule.studyDayMinutes,
     currentStudyDay: schedule.currentStudyDay,
+    currentStudyDate: schedule.currentStudyDate,
     completedToday,
     completedDate: completedToday ? schedule.currentStudyDate : null,
     completedStudyDay: completedToday ? schedule.currentStudyDay : null,
@@ -379,7 +380,29 @@ app.post("/api/participants/recover", limitRecovery, async (request, response) =
   const savedToday = currentDay <= 24 ? await prisma.dailyResponse.findUnique({ where: { participantId_studyDay: { participantId: participant.id, studyDay: currentDay } }, select: { studyDate: true } }) : null;
   const completedToday = Boolean(savedToday && dateOnly(savedToday.studyDate) === today);
   const assignment = await readParticipantAssignment(participant);
-  response.json({ participantId: participant.id, puppyName: participant.puppyName, timeframe: participant.timeframe || "LONG", assignedGroup: assignment.assignedGroup, assignedVersion: assignment.assignedVersion, enrolledDate: dateInZone(participant.enrolledAt, participant.timeZone), enrolledAt: participant.enrolledAt.toISOString(), studyDayMinutes: schedule.studyDayMinutes, currentStudyDay: schedule.currentStudyDay, token: issueSession("participant", participant.id), recoveryCode, completedToday, completedDate: completedToday ? today : null, completedStudyDay: completedToday ? currentDay : null });
+  response.json({ participantId: participant.id, puppyName: participant.puppyName, timeframe: participant.timeframe || "LONG", assignedGroup: assignment.assignedGroup, assignedVersion: assignment.assignedVersion, enrolledDate: dateInZone(participant.enrolledAt, participant.timeZone), enrolledAt: participant.enrolledAt.toISOString(), studyDayMinutes: schedule.studyDayMinutes, currentStudyDay: schedule.currentStudyDay, currentStudyDate: schedule.currentStudyDate, token: issueSession("participant", participant.id), recoveryCode, completedToday, completedDate: completedToday ? today : null, completedStudyDay: completedToday ? currentDay : null });
+});
+
+app.get("/api/participants/:participantId/schedule", async (request, response) => {
+  if (!requireParticipant(request, response, request.params.participantId)) return;
+  const participant = await prisma.participant.findUnique({ where: { id: request.params.participantId } });
+  if (!participant || participant.status !== "ACTIVE") return response.status(404).json({ error: "Participant was not found." });
+
+  const schedule = await participantStudySchedule(participant);
+  const savedToday = schedule.currentStudyDay <= 24
+    ? await prisma.dailyResponse.findUnique({
+      where: { participantId_studyDay: { participantId: participant.id, studyDay: schedule.currentStudyDay } },
+      select: { studyDate: true }
+    })
+    : null;
+  const completedToday = Boolean(savedToday && dateOnly(savedToday.studyDate) === schedule.currentStudyDate);
+  response.json({
+    timeframe: schedule.timeframe,
+    currentStudyDay: schedule.currentStudyDay,
+    currentStudyDate: schedule.currentStudyDate,
+    studyDayMinutes: schedule.studyDayMinutes,
+    completedToday
+  });
 });
 
 app.post("/api/participants/recovery-code", async (request, response) => {
@@ -441,16 +464,12 @@ app.post("/api/responses", async (request, response) => {
   });
   if (previousRequest) {
     if (schedule.timeframe === "SHORT" && previousRequest.studyDay < 24) {
-      return response.json({ saved: true, alreadySaved: true, autoAdvanced: true, nextStudyDay: schedule.currentStudyDay });
+      return response.json({ saved: true, alreadySaved: true, autoAdvanced: true, nextStudyDay: schedule.currentStudyDay, currentStudyDate: schedule.currentStudyDate });
     }
     return response.json({ saved: true, alreadySaved: true });
   }
 
   const currentDay = schedule.currentStudyDay;
-  if (data.studyDay !== currentDay) return response.status(409).json({ error: "A response can only be submitted for the current study day." });
-
-  const date = new Date(`${data.studyDate}T00:00:00.000Z`);
-  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== data.studyDate) return response.status(400).json({ error: "Invalid study date." });
   const assignedVersion = participant.assignedVersionId
     ? await prisma.trialOrderVersion.findUnique({ where: { id: participant.assignedVersionId } })
     : null;
@@ -458,9 +477,6 @@ app.post("/api/responses", async (request, response) => {
   if (!assignedTrial) return response.status(409).json({ error: "No assigned trial is available for this day." });
   if (!Number.isInteger(assignedTrial.e) || assignedTrial.e < 0 || assignedTrial.e > 12) {
     return response.status(409).json({ error: "The assigned trial contains an E value outside 0–12. The researcher must update this trial order." });
-  }
-  if (assignedTrial && data.studyDate !== schedule.currentStudyDate) {
-    return response.status(409).json({ error: "The response date must be today in the study time zone." });
   }
   const survey = data.survey;
   if (isSurveyDay(data.studyDay)) {
@@ -474,10 +490,10 @@ app.post("/api/responses", async (request, response) => {
       return response.status(400).json({ error: "Choose a food and activity comparison option from the assigned study version." });
     }
   }
-  const saveResult = await saveDailyResponse(prisma, {
+  const scheduledSave = await saveScheduledResponse(prisma, {
     participantId: data.participantId,
     studyDay: data.studyDay,
-    studyDate: date,
+    studyDate: data.studyDate,
     moodPrediction: data.moodPrediction,
     actualMood: data.actualMood,
     predictedEScore: data.predictedEScore,
@@ -497,16 +513,18 @@ app.post("/api/responses", async (request, response) => {
     activityEScore: survey?.activityAffectsE ? survey.activityEScore : null,
     activityComparisonLabel: survey?.activityAffectsE ? survey.activityComparisonLabel : null,
     requestId: data.requestId
-  });
+  }, schedule);
+  if (scheduledSave.error) return response.status(scheduledSave.status).json({ error: scheduledSave.error });
+  const saveResult = scheduledSave.result;
   if (saveResult.alreadySaved) return response.json({ saved: true, alreadySaved: true });
   if (saveResult.conflict) return response.status(409).json({ error: "A response already exists for this study day." });
 
   const shouldAutoAdvance = schedule.timeframe === "SHORT" && currentDay < 24;
   if (shouldAutoAdvance) {
-    return response.status(201).json({ saved: true, alreadySaved: false, autoAdvanced: true, nextStudyDay: currentDay + 1 });
+    return response.status(201).json({ saved: true, alreadySaved: false, autoAdvanced: true, nextStudyDay: currentDay + 1, currentStudyDate: schedule.currentStudyDate });
   }
 
-  response.status(201).json({ saved: true, alreadySaved: false, autoAdvanced: false });
+  response.status(201).json({ saved: true, alreadySaved: false, autoAdvanced: false, currentStudyDate: schedule.currentStudyDate });
 });
 
 app.get("/api/health", async (_request, response) => {

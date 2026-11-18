@@ -13,7 +13,7 @@ RUN npm ci --include=dev \
   && DATABASE_URL="postgresql://build:build@localhost:5432/build" npx prisma generate
 
 COPY backend ./
-COPY index.html app.js admin.html admin.js trial-order-parser.mjs study-days.mjs styles.css firebase-config.js firebase-data.js manifest.webmanifest manifest-short.webmanifest service-worker.js /app/
+COPY index.html app.js admin.html admin.js trial-order-parser.mjs study-days.mjs participant-schedule.mjs styles.css firebase-config.js firebase-data.js manifest.webmanifest manifest-short.webmanifest service-worker.js /app/
 COPY icons /app/icons
 
 EXPOSE 3001

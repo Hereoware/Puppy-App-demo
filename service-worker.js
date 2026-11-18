@@ -1,10 +1,11 @@
-const CACHE_NAME = "puppy-day-v9";
+const CACHE_NAME = "puppy-day-v10";
 const APP_FILES = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./study-days.mjs",
+  "./participant-schedule.mjs",
   "./firebase-config.js",
   "./firebase-data.js",
   "./manifest.webmanifest",

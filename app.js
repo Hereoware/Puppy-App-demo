@@ -1,4 +1,5 @@
 import { isCompleteSurvey, isSurveyDay, nextScreenAfterPrediction, surveyFollowupVisible } from "./study-days.mjs";
+import { reconcileParticipantSchedule, scheduledResponseFields } from "./participant-schedule.mjs";
 
 const app = document.querySelector("#app");
 const toast = document.querySelector("#toast");
@@ -162,7 +163,11 @@ async function postgresRequest(path, body) {
   }
   const response = await fetch(`/api/${path}`, { method: "POST", headers, body: JSON.stringify(body) });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || ac("saveFailed"));
+  if (!response.ok) {
+    const error = new Error(result.error || ac("saveFailed"));
+    error.status = response.status;
+    throw error;
+  }
   if (path === "responses" && result.autoAdvanced) {
     state.surveyAnswers = null;
     saveState();
@@ -195,6 +200,7 @@ function studyDayLengthMinutes() {
 function isAcceleratedSchedule() { return state?.postgresParticipant && studyDayLengthMinutes() < DEFAULT_STUDY_DAY_MINUTES; }
 function isSelfPacedSchedule() { return state?.postgresParticipant && state.timeframe === "SHORT"; }
 function rawStudyDay() {
+  if (state?.postgresParticipant && Number.isInteger(state.currentStudyDay)) return Math.max(1, state.currentStudyDay);
   if (isSelfPacedSchedule()) return Math.max(1, Number(state.currentStudyDay) || 1);
   if (isAcceleratedSchedule() && state?.enrolledAt) {
     const enrolledAt = new Date(state.enrolledAt);
@@ -205,6 +211,9 @@ function rawStudyDay() {
 }
 function studyDay() { return Math.min(24, rawStudyDay()); }
 function studyPeriodKey() {
+  if (state?.postgresParticipant && state.currentStudyDate) {
+    return isSelfPacedSchedule() ? `block-${rawStudyDay()}` : `date-${state.currentStudyDate}`;
+  }
   if (isAcceleratedSchedule() && state?.enrolledAt) return `block-${rawStudyDay()}`;
   return `date-${todayKey()}`;
 }
@@ -271,6 +280,26 @@ function clearParticipantState() {
   feedDone = false;
   playDone = false;
   localStorage.removeItem(STORE_KEY);
+}
+async function refreshPostgresSchedule() {
+  if (!isPostgresTrial() || !state?.participantToken || !state?.participantId) return true;
+  const response = await fetch(`/api/participants/${encodeURIComponent(state.participantId)}/schedule`, {
+    headers: { Authorization: `Bearer ${state.participantToken}` }
+  });
+  const schedule = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(schedule.error || ac("saveFailed"));
+
+  const reconciled = reconcileParticipantSchedule(state, {
+    ...schedule,
+    studyDayMinutes: schedule.studyDayMinutes || DEFAULT_STUDY_DAY_MINUTES
+  });
+  state = reconciled.state;
+  if (reconciled.stale) {
+    feedDone = false;
+    playDone = false;
+  }
+  saveState();
+  return !reconciled.stale;
 }
 if (state && state.environmentIntroSeen === undefined) { state.environmentIntroSeen = true; saveState(); }
 function t(key, vars = {}) { return (neutralCopy[language]?.[key] || translations[language][key] || translations.en[key] || key).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? ""); }
@@ -348,7 +377,7 @@ function renderOnboarding() {
       if (isPostgresTrial()) {
         const profile = await postgresRequest("participants", { puppyName: name, timeframe: requestedTimeframe() });
         const profileStudyDayMinutes = profile.studyDayMinutes || DEFAULT_STUDY_DAY_MINUTES;
-        state = { participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, timeframe: profile.timeframe || "LONG", currentStudyDay: profile.currentStudyDay || 1, assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: profile.recoveryCode ? "recovery-setup" : "environment-intro", environmentIntroSeen: false, completedToday: profile.completedToday, completedDate: profile.completedToday ? (profileStudyDayMinutes < DEFAULT_STUDY_DAY_MINUTES ? `block-${profile.completedStudyDay}` : `date-${todayKey()}`) : null, completedStudyDay: profile.completedStudyDay, enrolledDate: profile.enrolledDate || todayKey(), enrolledAt: profile.enrolledAt || null, studyDayMinutes: profileStudyDayMinutes, interactions: { fed: false, played: false }, localOnly: true };
+        state = { participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, timeframe: profile.timeframe || "LONG", currentStudyDay: profile.currentStudyDay || 1, currentStudyDate: profile.currentStudyDate || profile.enrolledDate || todayKey(), assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: profile.recoveryCode ? "recovery-setup" : "environment-intro", environmentIntroSeen: false, completedToday: profile.completedToday, completedDate: profile.completedToday ? (profile.timeframe === "SHORT" ? `block-${profile.completedStudyDay}` : `date-${profile.currentStudyDate}`) : null, completedStudyDay: profile.completedStudyDay, enrolledDate: profile.enrolledDate || todayKey(), enrolledAt: profile.enrolledAt || null, studyDayMinutes: profileStudyDayMinutes, interactions: { fed: false, played: false }, localOnly: true };
         pendingRecoveryCode = profile.recoveryCode;
       } else if (hasFirebaseConfig()) {
         const profile = await (await firebaseData()).enrollParticipant(name);
@@ -388,6 +417,7 @@ function renderHome() {
   document.querySelector("#manage-recovery-code")?.addEventListener("click", () => { state.screen = "recovery-setup"; state.customRecoveryCodeDraft ||= pendingRecoveryCode || ""; saveState(); render(); });
 }
 async function loadTrialForDay() {
+  if (isPostgresTrial() && state?.postgresParticipant) await refreshPostgresSchedule();
   if (studyWindowClosed()) throw new Error(studyWindowClosedMessage());
   const day = studyDay();
   if (isPostgresTrial() && state.postgresParticipant) {
@@ -395,6 +425,8 @@ async function loadTrialForDay() {
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || ac("saveFailed"));
     state.currentTrial = result;
+    state.currentStudyDay = result.day;
+    state.currentStudyDate = result.studyDate;
   } else {
     state.currentTrial = { day, t: day % 2, a: day <= 12 ? 1 : 0, e: (day - 1) % 13 };
   }
@@ -499,11 +531,20 @@ function renderComplete() {
     try {
       if (isPostgresTrial()) {
         if (!state.postgresParticipant) throw new Error("Start a new local trial with ?backend=postgres before submitting.");
+        const scheduleIsCurrent = await refreshPostgresSchedule();
+        if (!scheduleIsCurrent || state.completedToday || state.currentTrial?.day !== studyDay()) {
+          render();
+          showToast(language === "zh"
+            ? "研究日已更新，请按当前研究日继续。"
+            : language === "es"
+              ? "El día del estudio cambió. Continúa con el día actual."
+              : "The study day changed. Please continue with the current day.");
+          return;
+        }
         state.requestId ||= crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-        const result = await postgresRequest("responses", {
+        const responseBody = () => ({
           participantId: state.participantId,
-          studyDay: studyDay(),
-          studyDate: state.currentTrial?.studyDate || todayKey(),
+          ...scheduledResponseFields(state),
           predictedEScore: state.predictedEScore,
           interactions: {
             fed: Boolean(state.interactions?.fed),
@@ -513,9 +554,19 @@ function renderComplete() {
           },
           requestId: state.requestId
         });
+        let result;
+        try {
+          result = await postgresRequest("responses", responseBody());
+        } catch (error) {
+          if (state.timeframe !== "SHORT" || error.status !== 409 || !error.message.includes("response date")) throw error;
+          const scheduleIsCurrent = await refreshPostgresSchedule();
+          if (!scheduleIsCurrent || state.completedToday || state.currentTrial?.day !== studyDay()) throw error;
+          result = await postgresRequest("responses", responseBody());
+        }
         showToast(ac("saved"));
         if (result.autoAdvanced && result.nextStudyDay <= 24) {
           state.currentStudyDay = result.nextStudyDay;
+          state.currentStudyDate = result.currentStudyDate || state.currentStudyDate;
           state.completedToday = false;
           state.completedStudyDay = null;
           state.completedDate = null;
@@ -546,14 +597,23 @@ function renderComplete() {
       }
       state.completedToday = true;
       state.completedStudyDay = studyDay();
+      state.currentStudyDate = state.currentStudyDate || todayKey();
       state.completedDate = studyPeriodKey();
       state.screen = "home";
       saveState();
       render();
     } catch (error) {
       console.error("Daily response was not confirmed", error);
+      if (isPostgresTrial() && error.status === 409) {
+        try {
+          await refreshPostgresSchedule();
+          render();
+        } catch (refreshError) {
+          console.error("Could not refresh the server study schedule", refreshError);
+        }
+      }
       showToast(error.message || ac("saveFailed"));
-      button.disabled = false;
+      if (button.isConnected) button.disabled = false;
     }
   });
 }
@@ -576,7 +636,7 @@ function renderRecoverySetup() {
 function renderRecoveryLogin() {
   app.innerHTML = `<section class="recovery-screen"><p class="eyebrow">${t("title")}</p><h1>${ac("recoverTitle")}</h1><form id="recovery-form"><label for="recovery-code">${ac("codeLabel")}</label><input id="recovery-code" autocomplete="one-time-code" required /><button class="button button-primary button-wide" type="submit">${ac("restore")}</button></form><button id="back-to-welcome" class="text-button">${t("begin")}</button></section>`;
   document.querySelector("#back-to-welcome").addEventListener("click", renderOnboarding);
-  document.querySelector("#recovery-form").addEventListener("submit", async e => { e.preventDefault(); const button = e.currentTarget.querySelector("button"); button.disabled = true; try {     if (isPostgresTrial()) { const response = await fetch("/api/participants/recover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recoveryCode: document.querySelector("#recovery-code").value }) }); const profile = await response.json(); if (!response.ok) throw new Error(profile.error || ac("saveFailed"));     state = { participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, timeframe: profile.timeframe || "LONG", currentStudyDay: profile.currentStudyDay || 1, puppyName: profile.puppyName, language, screen: "recovery-setup", environmentIntroSeen: true, completedToday: profile.completedToday, completedDate: profile.completedToday ? (profile.studyDayMinutes < DEFAULT_STUDY_DAY_MINUTES ? `block-${profile.completedStudyDay}` : `date-${todayKey()}`) : null, completedStudyDay: profile.completedStudyDay, enrolledDate: profile.enrolledDate, enrolledAt: profile.enrolledAt || null, studyDayMinutes: profile.studyDayMinutes || DEFAULT_STUDY_DAY_MINUTES, interactions: { fed: false, played: false } }; pendingRecoveryCode = profile.recoveryCode; } else { const profile = await (await firebaseData()).recoverParticipant(document.querySelector("#recovery-code").value); const completedToday = profile.lastSubmittedDate === todayKey(); state = { participantId: profile.uid, firebaseUid: profile.uid, puppyName: profile.puppyName, language, screen: "home", environmentIntroSeen: true, completedToday, completedDate: completedToday ? `date-${todayKey()}` : null, enrolledDate: profile.enrolledOn, interactions: { fed: false, played: false }, nextStudyDay: profile.nextStudyDay }; } saveState(); render(); } catch (error) { showToast(error.message || ac("saveFailed")); button.disabled = false; } });
+  document.querySelector("#recovery-form").addEventListener("submit", async e => { e.preventDefault(); const button = e.currentTarget.querySelector("button"); button.disabled = true; try {     if (isPostgresTrial()) { const response = await fetch("/api/participants/recover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recoveryCode: document.querySelector("#recovery-code").value }) }); const profile = await response.json(); if (!response.ok) throw new Error(profile.error || ac("saveFailed"));     state = { participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, timeframe: profile.timeframe || "LONG", currentStudyDay: profile.currentStudyDay || 1, currentStudyDate: profile.currentStudyDate || profile.enrolledDate || todayKey(), puppyName: profile.puppyName, language, screen: "recovery-setup", environmentIntroSeen: true, completedToday: profile.completedToday, completedDate: profile.completedToday ? (profile.timeframe === "SHORT" ? `block-${profile.completedStudyDay}` : `date-${profile.currentStudyDate}`) : null, completedStudyDay: profile.completedStudyDay, enrolledDate: profile.enrolledDate, enrolledAt: profile.enrolledAt || null, studyDayMinutes: profile.studyDayMinutes || DEFAULT_STUDY_DAY_MINUTES, interactions: { fed: false, played: false } }; pendingRecoveryCode = profile.recoveryCode; } else { const profile = await (await firebaseData()).recoverParticipant(document.querySelector("#recovery-code").value); const completedToday = profile.lastSubmittedDate === todayKey(); state = { participantId: profile.uid, firebaseUid: profile.uid, puppyName: profile.puppyName, language, screen: "home", environmentIntroSeen: true, completedToday, completedDate: completedToday ? `date-${todayKey()}` : null, enrolledDate: profile.enrolledOn, interactions: { fed: false, played: false }, nextStudyDay: profile.nextStudyDay }; } saveState(); render(); } catch (error) { showToast(error.message || ac("saveFailed")); button.disabled = false; } });
 }
 async function resumeFirebaseParticipant() {
   if (isPostgresTrial()) return;
@@ -604,7 +664,7 @@ async function resumePostgresParticipant() {
       timeframe: state.localOnly ? requestedTimeframe() : state.timeframe || "LONG"
     });
     const profileStudyDayMinutes = profile.studyDayMinutes || DEFAULT_STUDY_DAY_MINUTES;
-    state = { ...state, participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, timeframe: profile.timeframe || "LONG", currentStudyDay: profile.currentStudyDay || 1, assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: profile.recoveryCode ? "recovery-setup" : "home", environmentIntroSeen: true, enrolledDate: profile.enrolledDate || todayKey(), enrolledAt: profile.enrolledAt || null, studyDayMinutes: profileStudyDayMinutes, completedToday: profile.completedToday, completedDate: profile.completedToday ? (profileStudyDayMinutes < DEFAULT_STUDY_DAY_MINUTES ? `block-${profile.completedStudyDay}` : `date-${todayKey()}`) : null, completedStudyDay: profile.completedStudyDay, prediction: null, predictedEScore: null, actualMood: null, actualEScore: null, surveyAnswers: null, currentTrial: null, requestId: null, interactions: { fed: false, played: false }, localOnly: true };
+    state = { ...state, participantId: profile.participantId, participantToken: profile.token, postgresParticipant: true, timeframe: profile.timeframe || "LONG", currentStudyDay: profile.currentStudyDay || 1, currentStudyDate: profile.currentStudyDate || profile.enrolledDate || todayKey(), assignedVersion: profile.assignedVersion, puppyName: profile.puppyName, language, screen: profile.recoveryCode ? "recovery-setup" : "home", environmentIntroSeen: true, enrolledDate: profile.enrolledDate || todayKey(), enrolledAt: profile.enrolledAt || null, studyDayMinutes: profileStudyDayMinutes, completedToday: profile.completedToday, completedDate: profile.completedToday ? (profile.timeframe === "SHORT" ? `block-${profile.completedStudyDay}` : `date-${profile.currentStudyDate}`) : null, completedStudyDay: profile.completedStudyDay, prediction: null, predictedEScore: null, actualMood: null, actualEScore: null, surveyAnswers: null, currentTrial: null, requestId: null, interactions: { fed: false, played: false }, localOnly: true };
     pendingRecoveryCode = profile.recoveryCode;
     saveState(); render();
   } catch (error) {
@@ -616,6 +676,12 @@ function showToast(message) { toast.textContent = message; toast.classList.add("
 if (isPostgresTrial() && state?.puppyName && (!state.postgresParticipant || !state.participantToken)) {
   app.innerHTML = `<section class="recovery-screen"><h1>${language === "zh" ? "正在连接本地数据库…" : "Connecting to the local database…"}</h1></section>`;
   resumePostgresParticipant();
+} else if (isPostgresTrial() && state?.participantToken) {
+  refreshPostgresSchedule().then(() => render()).catch((error) => {
+    console.error("Could not refresh participant schedule", error);
+    render();
+    showToast(error.message || ac("saveFailed"));
+  });
 } else {
   render();
 }
